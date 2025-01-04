@@ -164,6 +164,7 @@ async function monitorColor() {
         await launchBrowser();
 
         let lastColor = null;
+        let blueAnnounced = false;
         setInterval(async () => {
             if (!page || page.isClosed()) {
                 // Reinitialize the browser and page if the page is closed
@@ -208,18 +209,21 @@ async function monitorColor() {
                     status: 'online',
                 });
 
-                // Send the message only when the dot is cyan-blue or dark blue
-                if (color === '<:bluecyan:1324224790164144128>' || color === '<:darkblue:1324224216651923519>') {
-                    const channel = await client.channels.fetch(CHANNEL_ID);
-                    await channel.send({
-                        content: `<:darkblue:1324224216651923519> **The dot is blue!**`, // <@&${BLUE_ROLE_ID}>
-                        allowedMentions: { roles: [BLUE_ROLE_ID] }
-                    });
-                }
+     // Announce blue only if it wasn't already announced
+        if ((color === '<:bluecyan:1324224790164144128>' || color === '<:darkblue:1324224216651923519>') && !blueAnnounced) {
+            const channel = await client.channels.fetch(CHANNEL_ID);
+            await channel.send({
+                content: `<:darkblue:1324224216651923519> **The dot is blue!**`,
+                allowedMentions: { roles: [BLUE_ROLE_ID] }
+            });
+            blueAnnounced = true; // Prevent repeat announcements
+        } else if (color !== '<:bluecyan:1324224790164144128>' && color !== '<:darkblue:1324224216651923519>') {
+            blueAnnounced = false; // Reset if color is no longer blue
+        }
 
-                lastColor = color;
-            }
-        }, 10000);
+        lastColor = color;
+    }
+}, 15000);
 
         // Restart the browser every hour
         setInterval(async () => {

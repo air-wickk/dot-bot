@@ -97,32 +97,21 @@ async function getCenterColor(page) {
             encoding: 'base64',
             timeout: 30000,
         });
-        
-        if (!screenshot) {
-            throw new Error('Failed to capture screenshot.');
-        }        
 
-        const color = await page.evaluate((screenshot) => {
-            return new Promise((resolve, reject) => {
-                const img = new Image();
-                img.src = 'data:image/png;base64,' + screenshot;
-                img.onload = () => {
-                    const canvas = document.createElement('canvas');
-                    canvas.width = img.width;
-                    canvas.height = img.height;
-                    const ctx = canvas.getContext('2d');
-                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                    
-                    try {
-                        const pixel = ctx.getImageData(Math.floor(canvas.width / 2), Math.floor(canvas.height / 2), 1, 1).data;
-                        resolve([pixel[0], pixel[1], pixel[2]]);
-                    } catch (err) {
-                        reject('Failed to get image data: ' + err.message);
-                    }
-                };
-                img.onerror = (err) => reject('Failed to load image: ' + err.message);
-            });
-        }, screenshot);        
+        const color = await page.evaluate(async (screenshot) => {
+            const img = new Image();
+            img.src = 'data:image/png;base64,' + screenshot;
+            await new Promise((resolve) => img.onload = resolve);
+
+            const canvas = document.createElement('canvas');
+            canvas.width = img.width;
+            canvas.height = img.height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+            const pixel = ctx.getImageData(canvas.width / 2, canvas.height / 2, 1, 1).data;
+            return pixel;
+        }, screenshot);
 
         return classifyColor(color[0], color[1], color[2]);
     } catch (error) {
@@ -136,53 +125,30 @@ async function monitorColor() {
     let browser, page;
     try {
         async function launchBrowser() {
-            let browser;
-            let page;
-        
-            try {
-                // Launch the browser with recommended arguments
-                browser = await puppeteer.launch({
-                    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
-                });
-        
-                // Open a new page
-                page = await browser.newPage();
-        
-                // Set a default viewport
-                await page.setViewport({ width: 1920, height: 1080 });
-        
-                // Navigate to the desired page and ensure it's fully loaded
-                await page.goto('https://dot-bot-a809.onrender.com', {
-                    waitUntil: 'networkidle2', // Wait until there are no more than 2 network connections for 500ms
-                    timeout: 60000, // 60-second timeout
-                });
-        
-                console.log('Browser launched and page fully loaded.');
-                return { browser, page };
-        
-            } catch (error) {
-                console.error('Error during browser launch:', error);
-        
-                if (browser) {
-                    await browser.close();
-                }
-        
-                throw error;
-            }
+            if (browser) await browser.close(); // Close existing browser
+            browser = await puppeteer.launch({
+                headless: true,
+                args: [
+                    '--no-sandbox',
+                    '--disable-setuid-sandbox',
+                    '--disable-gpu',
+                    '--disable-dev-shm-usage'
+                ]
+            });
+            page = await browser.newPage();
+            await page.goto('https://global-mind.org/gcpdot/gcp.html', { waitUntil: 'domcontentloaded' });
         }
 
         // Launch browser initially
         await launchBrowser();
 
         let lastColor = null;
-        let blueAnnounced = false;
         setInterval(async () => {
             if (!page || page.isClosed()) {
-                console.log("Reinitializing browser and page...");
-                const result = await launchBrowser();
-                browser = result.browser;
-                page = result.page;
-            }            
+                // Reinitialize the browser and page if the page is closed
+                console.log("Page was closed, reinitializing...");
+                await launchBrowser();
+            }
 
             const color = await getCenterColor(page);
             let statusEmoji = '🔵'; // Default to blue for the activity status
@@ -216,15 +182,12 @@ async function monitorColor() {
                 }
 
                 // Update bot activity status to the emoji based on detected color
-                if (color !== lastColor) {
-                    client.user.setPresence({
-                        activities: [{ name: `the dot: ${statusEmoji}`, type: ActivityType.Watching }],
-                        status: 'online',
-                    });
-                    lastColor = color;
-                }                
+                client.user.setPresence({
+                    activities: [{ name: `the dot: ${statusEmoji}`, type: ActivityType.Watching }],
+                    status: 'online',
+                });
 
-     // Announce blue only if it wasn't already announced
+        // Announce blue only if it wasn't already announced
         if ((color === '<:bluecyan:1324224790164144128>' || color === '<:darkblue:1324224216651923519>') && !blueAnnounced) {
             const channel = await client.channels.fetch(CHANNEL_ID);
             await channel.send({

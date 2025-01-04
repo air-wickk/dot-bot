@@ -124,40 +124,30 @@ async function getCenterColor(page) {
 async function monitorColor() {
     let browser, page;
     try {
-        browser = await puppeteer.launch({
-            headless: true,
-            args: [
-                '--no-sandbox',
-                '--disable-setuid-sandbox',
-                '--disable-gpu',
-                '--disable-dev-shm-usage'
-            ]
-        });
+        async function launchBrowser() {
+            if (browser) await browser.close(); // Close existing browser
+            browser = await puppeteer.launch({
+                headless: true,
+                args: [
+                    '--no-sandbox',
+                    '--disable-setuid-sandbox',
+                    '--disable-gpu',
+                    '--disable-dev-shm-usage'
+                ]
+            });
+            page = await browser.newPage();
+            await page.goto('https://global-mind.org/gcpdot/gcp.html', { waitUntil: 'domcontentloaded' });
+        }
 
-        page = await browser.newPage();
+        // Launch browser initially
+        await launchBrowser();
+
         let lastColor = null;
-        await page.goto('https://global-mind.org/gcpdot/gcp.html', { waitUntil: 'domcontentloaded' });
-
         setInterval(async () => {
             if (!page || page.isClosed()) {
                 // Reinitialize the browser and page if the page is closed
                 console.log("Page was closed, reinitializing...");
-                try {
-                    browser = await puppeteer.launch({
-                        headless: true,
-                        args: [
-                            '--no-sandbox',
-                            '--disable-setuid-sandbox',
-                            '--disable-gpu',
-                            '--disable-dev-shm-usage'
-                        ]
-                    });
-                    page = await browser.newPage();
-                    await page.goto('https://global-mind.org/gcpdot/gcp.html', { waitUntil: 'domcontentloaded' });
-                } catch (err) {
-                    console.error("Error reinitializing the page:", err);
-                    return;
-                }
+                await launchBrowser();
             }
 
             const color = await getCenterColor(page);
@@ -209,11 +199,17 @@ async function monitorColor() {
                 lastColor = color;
             }
         }, 10000);
+
+        // Restart the browser every hour
+        setInterval(async () => {
+            console.log("Restarting browser...");
+            await launchBrowser();
+        }, 3600000); // 1 hour in milliseconds
+
     } catch (error) {
         console.error("Error during color monitoring:", error);
     }
 }
-
 
 // 🗨️ Commands
 client.on('ready', async () => {

@@ -97,21 +97,32 @@ async function getCenterColor(page) {
             encoding: 'base64',
             timeout: 30000,
         });
+        
+        if (!screenshot) {
+            throw new Error('Failed to capture screenshot.');
+        }        
 
-        const color = await page.evaluate(async (screenshot) => {
-            const img = new Image();
-            img.src = 'data:image/png;base64,' + screenshot;
-            await new Promise((resolve) => img.onload = resolve);
-
-            const canvas = document.createElement('canvas');
-            canvas.width = img.width;
-            canvas.height = img.height;
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-
-            const pixel = ctx.getImageData(canvas.width / 2, canvas.height / 2, 1, 1).data;
-            return pixel;
-        }, screenshot);
+        const color = await page.evaluate((screenshot) => {
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+                img.src = 'data:image/png;base64,' + screenshot;
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                    
+                    try {
+                        const pixel = ctx.getImageData(Math.floor(canvas.width / 2), Math.floor(canvas.height / 2), 1, 1).data;
+                        resolve([pixel[0], pixel[1], pixel[2]]);
+                    } catch (err) {
+                        reject('Failed to get image data: ' + err.message);
+                    }
+                };
+                img.onerror = (err) => reject('Failed to load image: ' + err.message);
+            });
+        }, screenshot);        
 
         return classifyColor(color[0], color[1], color[2]);
     } catch (error) {
@@ -167,10 +178,11 @@ async function monitorColor() {
         let blueAnnounced = false;
         setInterval(async () => {
             if (!page || page.isClosed()) {
-                // Reinitialize the browser and page if the page is closed
-                console.log("Page was closed, reinitializing...");
-                await launchBrowser();
-            }
+                console.log("Reinitializing browser and page...");
+                const result = await launchBrowser();
+                browser = result.browser;
+                page = result.page;
+            }            
 
             const color = await getCenterColor(page);
             let statusEmoji = '🔵'; // Default to blue for the activity status
@@ -204,10 +216,13 @@ async function monitorColor() {
                 }
 
                 // Update bot activity status to the emoji based on detected color
-                client.user.setPresence({
-                    activities: [{ name: `the dot: ${statusEmoji}`, type: ActivityType.Watching }],
-                    status: 'online',
-                });
+                if (color !== lastColor) {
+                    client.user.setPresence({
+                        activities: [{ name: `the dot: ${statusEmoji}`, type: ActivityType.Watching }],
+                        status: 'online',
+                    });
+                    lastColor = color;
+                }                
 
      // Announce blue only if it wasn't already announced
         if ((color === '<:bluecyan:1324224790164144128>' || color === '<:darkblue:1324224216651923519>') && !blueAnnounced) {

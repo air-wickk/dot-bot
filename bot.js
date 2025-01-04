@@ -137,7 +137,7 @@ async function monitorColor() {
         async function launchBrowser() {
             if (browser) await browser.close(); // Close existing browser
             browser = await puppeteer.launch({
-                headless: false, // DEBUGGING PURPOSES!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+                headless: true,
                 args: [
                     '--no-sandbox',
                     '--disable-setuid-sandbox',

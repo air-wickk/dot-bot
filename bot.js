@@ -92,12 +92,20 @@ function rgbToHsl(r, g, b) {
 // 📊 Function to get the center color of the page using canvas
 async function getCenterColor(page) {
     try {
-        const screenshot = await page.screenshot({
-            fullPage: true,
-            encoding: 'base64',
-            timeout: 30000,
-        });
+        let screenshot;
+        try {
+            // Attempt to take the screenshot
+            screenshot = await page.screenshot({
+                fullPage: true,
+                encoding: 'base64',
+                timeout: 30000,
+            });
+        } catch (error) {
+            console.error("Error taking screenshot:", error);
+            return null;  // Return null or handle the error as needed
+        }
 
+        // Proceed with processing the screenshot if it's successfully captured
         const color = await page.evaluate(async (screenshot) => {
             const img = new Image();
             img.src = 'data:image/png;base64,' + screenshot;
@@ -113,7 +121,9 @@ async function getCenterColor(page) {
             return pixel;
         }, screenshot);
 
+        // Classify the color based on RGB values
         return classifyColor(color[0], color[1], color[2]);
+
     } catch (error) {
         console.error('Error fetching color:', error);
         return null;
@@ -127,7 +137,7 @@ async function monitorColor() {
         async function launchBrowser() {
             if (browser) await browser.close(); // Close existing browser
             browser = await puppeteer.launch({
-                headless: true,
+                headless: false, // DEBUGGING PURPOSES!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
                 args: [
                     '--no-sandbox',
                     '--disable-setuid-sandbox',
@@ -136,7 +146,7 @@ async function monitorColor() {
                 ]
             });
             page = await browser.newPage();
-            await page.goto('https://global-mind.org/gcpdot/gcp.html', { waitUntil: 'domcontentloaded' });
+            await page.goto('https://global-mind.org/gcpdot/gcp.html', { waitUntil: 'networkidle0' });
         }
 
         // Launch browser initially

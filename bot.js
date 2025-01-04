@@ -125,18 +125,39 @@ async function monitorColor() {
     let browser, page;
     try {
         async function launchBrowser() {
-            if (browser) await browser.close(); // Close existing browser
-            browser = await puppeteer.launch({
-                headless: true,
-                args: [
-                    '--no-sandbox',
-                    '--disable-setuid-sandbox',
-                    '--disable-gpu',
-                    '--disable-dev-shm-usage'
-                ]
-            });
-            page = await browser.newPage();
-            await page.goto('https://global-mind.org/gcpdot/gcp.html', { waitUntil: 'domcontentloaded' });
+            let browser;
+            let page;
+        
+            try {
+                // Launch the browser with recommended arguments
+                browser = await puppeteer.launch({
+                    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+                });
+        
+                // Open a new page
+                page = await browser.newPage();
+        
+                // Set a default viewport
+                await page.setViewport({ width: 1920, height: 1080 });
+        
+                // Navigate to the desired page and ensure it's fully loaded
+                await page.goto('https://dot-bot-a809.onrender.com', {
+                    waitUntil: 'networkidle2', // Wait until there are no more than 2 network connections for 500ms
+                    timeout: 60000, // 60-second timeout
+                });
+        
+                console.log('Browser launched and page fully loaded.');
+                return { browser, page };
+        
+            } catch (error) {
+                console.error('Error during browser launch:', error);
+        
+                if (browser) {
+                    await browser.close();
+                }
+        
+                throw error;
+            }
         }
 
         // Launch browser initially

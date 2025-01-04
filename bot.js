@@ -1,6 +1,7 @@
 // node bot.js to run
 const puppeteer = require('puppeteer');
 const { Client, GatewayIntentBits, SlashCommandBuilder, ActivityType, REST, Routes } = require('discord.js');
+const express = require('express');
 require('dotenv').config();
 
 // Load environment variables
@@ -16,6 +17,20 @@ const client = new Client({
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent
     ]
+});
+
+// Express server for Render compatibility
+const app = express();
+
+// Simple health check endpoint
+app.get('/', (req, res) => {
+    res.send('Bot is running');
+});
+
+// Set the port to listen on
+const port = process.env.PORT || 3000;
+app.listen(port, () => {
+    console.log(`Web service listening on port ${port}`);
 });
 
 // 📊 Color Tracking Data
@@ -169,7 +184,7 @@ async function monitorColor() {
     
             lastColor = color;
         }
-    }, 15000);    
+    }, 10000);    
 }
 
 // 🗨️ Commands

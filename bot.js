@@ -143,19 +143,20 @@ async function monitorColor() {
         await launchBrowser();
 
         let lastColor = null;
+        let blueAnnounced = false;
         setInterval(async () => {
             if (!page || page.isClosed()) {
                 // Reinitialize the browser and page if the page is closed
-                console.log("Page was closed, reinitializing...");
+                console.log("Page is closed, reopening...");
                 await launchBrowser();
             }
-
+        
             const color = await getCenterColor(page);
             let statusEmoji = '🔵'; // Default to blue for the activity status
-
+        
             if (color && color !== lastColor) {
                 colorLog.push({ color, timestamp: Date.now() });
-
+        
                 // Check for specific colors and map to the general emojis for the activity status
                 if (color === '<:red:1324226477268406353>') {
                     statusEmoji = '🔴';
@@ -180,28 +181,28 @@ async function monitorColor() {
                 } else if (color === '<:darkblue:1324224216651923519>') {
                     statusEmoji = '🔵';
                 }
-
+        
                 // Update bot activity status to the emoji based on detected color
                 client.user.setPresence({
                     activities: [{ name: `the dot: ${statusEmoji}`, type: ActivityType.Watching }],
                     status: 'online',
                 });
-
-        // Announce blue only if it wasn't already announced
-        if ((color === '<:bluecyan:1324224790164144128>' || color === '<:darkblue:1324224216651923519>') && !blueAnnounced) {
-            const channel = await client.channels.fetch(CHANNEL_ID);
-            await channel.send({
-                content: `<:darkblue:1324224216651923519> **The dot is blue!**`,
-                allowedMentions: { roles: [BLUE_ROLE_ID] }
-            });
-            blueAnnounced = true; // Prevent repeat announcements
-        } else if (color !== '<:bluecyan:1324224790164144128>' && color !== '<:darkblue:1324224216651923519>') {
-            blueAnnounced = false; // Reset if color is no longer blue
-        }
-
-        lastColor = color;
-    }
-}, 15000);
+        
+                // Announce blue only if it wasn't already announced
+                if ((color === '<:bluecyan:1324224790164144128>' || color === '<:darkblue:1324224216651923519>') && !blueAnnounced) {
+                    const channel = await client.channels.fetch(CHANNEL_ID);
+                    await channel.send({
+                        content: `<:darkblue:1324224216651923519> **The dot is blue!**`,
+                        allowedMentions: { roles: [BLUE_ROLE_ID] }
+                    });
+                    blueAnnounced = true; // Prevent repeat announcements
+                } else if (color !== '<:bluecyan:1324224790164144128>' && color !== '<:darkblue:1324224216651923519>') {
+                    blueAnnounced = false; // Reset if color is no longer blue
+                }
+        
+                lastColor = color;
+            }
+        }, 15000);
 
         // Restart the browser every hour
         setInterval(async () => {

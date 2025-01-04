@@ -107,7 +107,15 @@ async function getCenterColor(page) {
 
 // 🚨 Monitor center color and send Discord alerts for "Blue"
 async function monitorColor() {
-    const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox'] });
+    const browser = await puppeteer.launch({
+        headless: true,
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-gpu',
+          '--disable-dev-shm-usage'
+        ]
+      });      
     const page = await browser.newPage();
     let lastColor = null;
     await page.goto('https://global-mind.org/gcpdot/gcp.html', { waitUntil: 'domcontentloaded' });

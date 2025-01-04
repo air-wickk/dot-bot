@@ -1,6 +1,6 @@
 // node bot.js to run
 const puppeteer = require('puppeteer');
-const { Client, GatewayIntentBits, SlashCommandBuilder, ActivityType } = require('discord.js');
+const { Client, GatewayIntentBits, SlashCommandBuilder, ActivityType, REST, Routes } = require('discord.js');
 require('dotenv').config();
 
 // Load environment variables
@@ -175,9 +175,26 @@ async function monitorColor() {
 // 🗨️ Commands
 client.on('ready', async () => {
     console.log(`✅ Logged in as ${client.user.tag}!`);
+    
+    /* Delete global commands
+
+    const clientId = "1323744486811111473"; // bot's client ID here
+    const commandId = "1324218706997542913"; // command ID to delete
+
+    const rest = new REST({ version: '10' }).setToken(BOT_TOKEN);
+    try {
+        await rest.delete(Routes.applicationCommand(clientId, commandId));
+        console.log('Successfully deleted the global command');
+    } catch (error) {
+        console.error('Error deleting command:', error);
+    }
+    */
+
+    // Register new command
     await client.application.commands.create(
         new SlashCommandBuilder().setName('dotcolor').setDescription('Get the current color of the dot!')
     );
+    
     monitorColor();
 });
 

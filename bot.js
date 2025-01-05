@@ -66,27 +66,40 @@ function rgbToHsl(r, g, b) {
     return [h * 360, s, l];
 }
 
-// 📊 Get Center Color
 async function getCenterColor(page) {
     try {
-        const screenshot = await page.screenshot({ fullPage: true, encoding: 'base64', timeout: 30000 });
-        const color = await page.evaluate(screenshot => {
+        let screenshot;
+        try {
+            // Attempt to take the screenshot
+            screenshot = await page.screenshot({
+                fullPage: true,
+                encoding: 'base64',
+                timeout: 30000,
+            });
+        } catch (error) {
+            console.error("Error taking screenshot:", error);
+            return null;  // Return null or handle the error as needed
+        }
+
+        // Proceed with processing the screenshot if it's successfully captured
+        const color = await page.evaluate(async (screenshot) => {
             const img = new Image();
             img.src = 'data:image/png;base64,' + screenshot;
-            return new Promise(resolve => {
-                img.onload = () => {
-                    const canvas = document.createElement('canvas');
-                    canvas.width = img.width;
-                    canvas.height = img.height;
-                    const ctx = canvas.getContext('2d');
-                    ctx.drawImage(img, 0, 0, img.width, img.height);
-                    const pixel = ctx.getImageData(canvas.width / 2, canvas.height / 2, 1, 1).data;
-                    resolve(pixel);
-                };
-            });
+            await new Promise((resolve) => img.onload = resolve);
+
+            const canvas = document.createElement('canvas');
+            canvas.width = img.width;
+            canvas.height = img.height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+            const pixel = ctx.getImageData(canvas.width / 2, canvas.height / 2, 1, 1).data;
+            return pixel;
         }, screenshot);
 
+        // Classify the color based on RGB values
         return classifyColor(color[0], color[1], color[2]);
+
     } catch (error) {
         console.error('Error fetching color:', error);
         return null;

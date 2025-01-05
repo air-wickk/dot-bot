@@ -94,18 +94,22 @@ async function getCenterColor(page) {
     try {
         let screenshot;
         try {
-            // Attempt to take the screenshot
+            await new Promise(r => setTimeout(r, 5000)); // Ensure page is fully loaded
             screenshot = await page.screenshot({
                 fullPage: true,
                 encoding: 'base64',
-                timeout: 30000,
+                timeout: 60000, // Increased timeout
             });
         } catch (error) {
-            console.error("Error taking screenshot:", error);
-            return null;  // Return null or handle the error as needed
+            console.error("Error taking screenshot:", error.message);
+            return null;
         }
 
-        // Proceed with processing the screenshot if it's successfully captured
+        if (!screenshot) {
+            console.error('Failed to capture screenshot.');
+            return null;
+        }
+
         const color = await page.evaluate(async (screenshot) => {
             const img = new Image();
             img.src = 'data:image/png;base64,' + screenshot;
@@ -121,14 +125,15 @@ async function getCenterColor(page) {
             return pixel;
         }, screenshot);
 
-        // Classify the color based on RGB values
         return classifyColor(color[0], color[1], color[2]);
 
     } catch (error) {
-        console.error('Error fetching color:', error);
+        console.error('Error fetching color:', error.message);
         return null;
     }
 }
+
+
 
 // 🚨 Monitor center color and send Discord alerts for "Blue"
 async function monitorColor() {
@@ -155,12 +160,10 @@ async function monitorColor() {
         let lastColor = null;
         let blueAnnounced = false;
         setInterval(async () => {
-            if (!page || page.isClosed()) {
-                // Reinitialize the browser and page if the page is closed
-                console.log("Page is closed, reopening...");
+            if (!browser || !page || (page.isClosed && page.isClosed())) {
+                console.log('Re-initializing browser...');
                 await launchBrowser();
-            }
-        
+            }               
             const color = await getCenterColor(page);
             let statusEmoji = '🔵'; // Default to blue for the activity status
         
@@ -173,7 +176,7 @@ async function monitorColor() {
                 } else if (color === '<:orangered:1324226458465337365>') {
                     statusEmoji = '🟠';
                 } else if (color === '<:orange:1324226439796621322>') {
-                    statusEmoji = '🟡';
+                    statusEmoji = '🟠';
                 } else if (color === '<:yelloworange:1324226423568728074>') {
                     statusEmoji = '🟡';
                 } else if (color === '<:yellow:1324226408783810603>') {

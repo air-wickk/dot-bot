@@ -28,7 +28,7 @@ app.get('/', (req, res) => {
 });
 
 // Set the port to listen on
-const port = process.env.PORT || 3000;
+const port = process.env.PORT || 10000;
 app.listen(port, () => {
     console.log(`Web service listening on port ${port}`);
 });
@@ -202,7 +202,7 @@ async function monitorColor() {
                 if ((color === '<:bluecyan:1324224790164144128>' || color === '<:darkblue:1324224216651923519>') && !blueAnnounced) {
                     const channel = await client.channels.fetch(CHANNEL_ID);
                     await channel.send({
-                        content: '<:darkblue:1324224216651923519> **The dot is blue!**',
+                        content: `<:darkblue:1324224216651923519> **The dot is blue!**`,
                         allowedMentions: { roles: [BLUE_ROLE_ID] }
                     });
                     blueAnnounced = true; // Prevent repeat announcements

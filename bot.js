@@ -117,9 +117,30 @@ async function monitorColor() {
         if (color && color !== lastColor) {
             colorLog.push({ color, timestamp: Date.now() });
             let statusEmoji = '🔵';
-            if (color === '<:red:1324226477268406353>') statusEmoji = '🔴';
-            else if (['<:yellow:1324226408783810603>', '<:yelloworange:1324226423568728074>'].includes(color)) statusEmoji = '🟡';
-            else if (['<:green:1324226357663633508>', '<:cyangreen:1324226321253142539>'].includes(color)) statusEmoji = '🟢';
+                // Check for specific colors and map to the general emojis for the activity status
+                if (color === '<:red:1324226477268406353>') {
+                    statusEmoji = '🔴';
+                } else if (color === '<:orangered:1324226458465337365>') {
+                    statusEmoji = '🟠';
+                } else if (color === '<:orange:1324226439796621322>') {
+                    statusEmoji = '🟡';
+                } else if (color === '<:yelloworange:1324226423568728074>') {
+                    statusEmoji = '🟡';
+                } else if (color === '<:yellow:1324226408783810603>') {
+                    statusEmoji = '🟡';
+                } else if (color === '<:greenyellow:1324226389859373086>') {
+                    statusEmoji = '🟢';
+                } else if (color === '<:green:1324226357663633508>') {
+                    statusEmoji = '🟢';
+                } else if (color === '<:cyangreen:1324226321253142539>') {
+                    statusEmoji = '🟢';
+                } else if (color === '<:cyan:1324226273794461706>') {
+                    statusEmoji = '🟢';
+                } else if (color === '<:bluecyan:1324224790164144128>') {
+                    statusEmoji = '🔵';
+                } else if (color === '<:darkblue:1324224216651923519>') {
+                    statusEmoji = '🔵';
+                }
 
             client.user.setPresence({
                 activities: [{ name: `the dot: ${statusEmoji}`, type: ActivityType.Watching }],

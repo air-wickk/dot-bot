@@ -33,8 +33,17 @@ app.listen(port, () => {
     console.log(`Web service listening on port ${port}`);
 });
 
-// 📊 Color Tracking Data
-let colorLog = [];
+// 📊 Color Tracking Data with Limit
+const colorLog = [];
+const MAX_COLOR_LOG_SIZE = 100; // Limit the log to the last 100 entries
+
+// Update log with size restriction
+function addToColorLog(color) {
+    colorLog.push({ color, timestamp: Date.now() });
+    if (colorLog.length > MAX_COLOR_LOG_SIZE) {
+        colorLog.shift(); // Remove the oldest entry
+    }
+}
 
 // 📊 Function to classify color into categories using Euclidean distance
 function classifyColor(r, g, b) {
@@ -89,41 +98,51 @@ function rgbToHsl(r, g, b) {
     return [h * 360, s, l];
 }
 
-// 📊 Function to get the center color of the page using canvas
-async function getCenterColor(page) {
+async function getCenterColor(page, retries = 3) {
     try {
         let screenshot;
-        try {
-            await new Promise(r => setTimeout(r, 5000)); // Ensure page is fully loaded
-            screenshot = await page.screenshot({
-                fullPage: true,
-                encoding: 'base64',
-                timeout: 60000, // Increased timeout
-            });
-        } catch (error) {
-            console.error("Error taking screenshot:", error.message);
-            return null;
+
+        // Retry mechanism for taking a screenshot
+        for (let i = 0; i < retries; i++) {
+            try {
+                if (page && !page.isClosed()) {
+                    await new Promise(r => setTimeout(r, 5000)); // Ensure page is fully loaded
+                    screenshot = await page.screenshot({
+                        fullPage: true,
+                        encoding: 'base64',
+                        timeout: 60000, // Increased timeout
+                    });
+                    break;
+                } else {
+                    console.warn('Page is closed or invalid. Retrying...');
+                }
+            } catch (error) {
+                console.warn(`Retry ${i + 1}: Failed to take screenshot`, error.message);
+                if (i === retries - 1) throw error; // Rethrow on final attempt
+            }
         }
 
         if (!screenshot) {
-            console.error('Failed to capture screenshot.');
+            console.error('Failed to capture screenshot after retries.');
             return null;
         }
 
-        const color = await page.evaluate(async (screenshot) => {
-            const img = new Image();
-            img.src = 'data:image/png;base64,' + screenshot;
-            await new Promise((resolve) => img.onload = resolve);
-
-            const canvas = document.createElement('canvas');
-            canvas.width = img.width;
-            canvas.height = img.height;
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-
-            const pixel = ctx.getImageData(canvas.width / 2, canvas.height / 2, 1, 1).data;
-            return pixel;
-        }, screenshot);
+        // Evaluate the center color using the screenshot
+        const color = await page.evaluate((screenshot) => {
+            return new Promise((resolve) => {
+                const img = new Image();
+                img.src = 'data:image/png;base64,' + screenshot;
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                    const pixel = ctx.getImageData(Math.floor(canvas.width / 2), Math.floor(canvas.height / 2), 1, 1).data;
+                    resolve([pixel[0], pixel[1], pixel[2]]);
+                };
+            });
+        }, screenshot); // Pass `screenshot` to evaluate
 
         return classifyColor(color[0], color[1], color[2]);
 
@@ -132,8 +151,6 @@ async function getCenterColor(page) {
         return null;
     }
 }
-
-
 
 // 🚨 Monitor center color and send Discord alerts for "Blue"
 async function monitorColor() {
@@ -168,7 +185,7 @@ async function monitorColor() {
             let statusEmoji = '🔵'; // Default to blue for the activity status
         
             if (color && color !== lastColor) {
-                colorLog.push({ color, timestamp: Date.now() });
+                addToColorLog(color);
         
                 // Check for specific colors and map to the general emojis for the activity status
                 if (color === '<:red:1324226477268406353>') {
@@ -221,7 +238,7 @@ async function monitorColor() {
         setInterval(async () => {
             console.log("Restarting browser...");
             await launchBrowser();
-        }, 3600000); // 1 hour in milliseconds
+        }, 1800000); // 30 mins in milliseconds
 
     } catch (error) {
         console.error("Error during color monitoring:", error);

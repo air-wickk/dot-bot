@@ -105,20 +105,35 @@ async function getCenterColor(page, retries = 3) {
         // Retry mechanism for taking a screenshot
         for (let i = 0; i < retries; i++) {
             try {
-                if (page && !page.isClosed()) {
-                    await new Promise(r => setTimeout(r, 5000)); // Ensure page is fully loaded
-                    screenshot = await page.screenshot({
-                        fullPage: true,
-                        encoding: 'base64',
-                        timeout: 60000, // Increased timeout
-                    });
-                    break;
-                } else {
-                    console.warn('Page is closed or invalid. Retrying...');
+                // Ensure the page is valid and open
+                if (!page || page.isClosed()) {
+                    console.warn('Page is closed or invalid. Restarting browser...');
+                    await launchBrowser();
+                    return null;
                 }
+
+                // Ensure the page is fully loaded
+                const isPageOk = await page.evaluate(() => document.readyState === 'complete');
+                if (!isPageOk) {
+                    console.warn('Page is not fully loaded. Reloading...');
+                    await page.reload({ waitUntil: 'load' });
+                    await new Promise(r => setTimeout(r, 2000)); // Wait after reload
+                }
+
+                // Take the screenshot
+                await new Promise(r => setTimeout(r, 2000)); // Small delay to ensure stability
+                screenshot = await page.screenshot({
+                    fullPage: true,
+                    encoding: 'base64',
+                    timeout: 60000, // Increased timeout
+                });
+
+                if (screenshot) break; // Exit retry loop on successful screenshot
+
             } catch (error) {
                 console.warn(`Retry ${i + 1}: Failed to take screenshot`, error.message);
-                if (i === retries - 1) throw error; // Rethrow on final attempt
+                if (i === retries - 1) throw error; // Fail after final retry
+                await new Promise(res => setTimeout(res, 2000)); // Wait before retrying
             }
         }
 
@@ -129,25 +144,35 @@ async function getCenterColor(page, retries = 3) {
 
         // Evaluate the center color using the screenshot
         const color = await page.evaluate((screenshot) => {
-            return new Promise((resolve) => {
-                const img = new Image();
-                img.src = 'data:image/png;base64,' + screenshot;
-                img.onload = () => {
-                    const canvas = document.createElement('canvas');
-                    canvas.width = img.width;
-                    canvas.height = img.height;
-                    const ctx = canvas.getContext('2d');
-                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                    const pixel = ctx.getImageData(Math.floor(canvas.width / 2), Math.floor(canvas.height / 2), 1, 1).data;
-                    resolve([pixel[0], pixel[1], pixel[2]]);
-                };
+            return new Promise((resolve, reject) => {
+                try {
+                    const img = new Image();
+                    img.src = 'data:image/png;base64,' + screenshot;
+                    img.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        canvas.width = img.width;
+                        canvas.height = img.height;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                        const pixel = ctx.getImageData(
+                            Math.floor(canvas.width / 2), 
+                            Math.floor(canvas.height / 2), 
+                            1, 
+                            1
+                        ).data;
+                        resolve([pixel[0], pixel[1], pixel[2]]);
+                    };
+                    img.onerror = () => reject(new Error('Failed to load image onto canvas'));
+                } catch (err) {
+                    reject(err);
+                }
             });
         }, screenshot); // Pass `screenshot` to evaluate
 
-        return classifyColor(color[0], color[1], color[2]);
+        return classifyColor(color[0], color[1], color[2]); // Assuming `classifyColor` exists
 
     } catch (error) {
-        console.error('Error fetching color:', error.message);
+        console.error('Error in getCenterColor:', error.message);
         return null;
     }
 }

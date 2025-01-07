@@ -55,6 +55,8 @@ function wasBlueRecently() {
 function classifyColor(r, g, b) {
     const hsl = rgbToHsl(r, g, b);
     const hue = hsl[0];
+    const saturation = hsl[1];
+    const lightness = hsl[2];
 
     // Mapping the hue to the closest custom emojis based on hue values
     const colors = [
@@ -71,13 +73,18 @@ function classifyColor(r, g, b) {
         { emoji: '<:darkblue:1324224216651923519>', min: 220, max: 255 }, // Dark Blue
     ];
 
-    let closestColor = 'Unknown';
+    let closestColor = '<:pink:1326324208279490581>'; // Default to pink if no match
 
     for (let color of colors) {
         if (hue >= color.min && hue < color.max) {
             closestColor = color.emoji;
             break;
         }
+    }
+
+    // Special case for anomaly detection (e.g., highly desaturated or light pinks)
+    if (closestColor === '<:pink:1326324208279490581>' && saturation < 30 && lightness > 70) {
+        closestColor = '<:pink:1326324208279490581>';
     }
 
     return closestColor;
@@ -217,10 +224,10 @@ async function monitorColor() {
         
                 const color = await getCenterColor(page);
                 let statusEmoji = '🔵'; // Default to blue for the activity status
-        
+                
                 if (color && color !== lastColor) {
                     addToColorLog(color);
-        
+                
                     // Map specific colors to general emojis
                     const colorMap = {
                         '<:red:1324226477268406353>': '🔴',
@@ -233,10 +240,11 @@ async function monitorColor() {
                         '<:cyangreen:1324226321253142539>': '🟢',
                         '<:cyan:1324226273794461706>': '🟢',
                         '<:bluecyan:1324224790164144128>': '🔵',
-                        '<:darkblue:1324224216651923519>': '🔵'
+                        '<:darkblue:1324224216651923519>': '🔵',
+                        '<:pink:1326324208279490581>': '⚪' // Map pink anomaly to white
                     };
-        
-                    statusEmoji = colorMap[color] || '🔵'; // Default to blue if not mapped
+                
+                    statusEmoji = colorMap[color] || '⚪'; // Default to white if not mapped (anomaly)
         
                     // Update bot activity status
                     client.user.setPresence({

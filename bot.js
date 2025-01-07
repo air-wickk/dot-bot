@@ -45,6 +45,12 @@ function addToColorLog(color) {
     }
 }
 
+function wasBlueRecently() {
+    return colorLog.slice(-20).some(entry => 
+        ['<:bluecyan:1324224790164144128>', '<:darkblue:1324224216651923519>'].includes(entry.color)
+    );
+}
+
 // 📊 Function to classify color into categories using Euclidean distance
 function classifyColor(r, g, b) {
     const hsl = rgbToHsl(r, g, b);
@@ -201,6 +207,7 @@ async function monitorColor() {
 
         let lastColor = null;
         let blueAnnounced = false;
+
         setInterval(async () => {
             try {
                 if (!browser || !page || (page.isClosed && page.isClosed())) {
@@ -237,9 +244,9 @@ async function monitorColor() {
                         status: 'online',
                     });
         
-                    // Handle blue announcements
+                    // Handle blue announcements with cooldown
                     if (['<:bluecyan:1324224790164144128>', '<:darkblue:1324224216651923519>'].includes(color)) {
-                        if (!blueAnnounced) {
+                        if (!blueAnnounced && !wasBlueRecently()) {
                             const channel = await client.channels.fetch(CHANNEL_ID);
                             await channel.send({
                                 content: `<:darkblue:1324224216651923519> **The dot is blue!**`,

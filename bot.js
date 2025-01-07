@@ -60,9 +60,9 @@ function classifyColor(r, g, b) {
         { emoji: '<:greenyellow:1324226389859373086>', min: 90, max: 120 }, // Green-Yellow
         { emoji: '<:green:1324226357663633508>', min: 120, max: 150 }, // Green
         { emoji: '<:cyangreen:1324226321253142539>', min: 150, max: 170 }, // Cyan-Green
-        { emoji: '<:cyan:1324226273794461706>', min: 170, max: 190 }, // Cyan
-        { emoji: '<:bluecyan:1324224790164144128>', min: 190, max: 210 }, // Blue-Cyan
-        { emoji: '<:darkblue:1324224216651923519>', min: 210, max: 250 }, // Dark Blue
+        { emoji: '<:cyan:1324226273794461706>', min: 170, max: 195 }, // Cyan
+        { emoji: '<:bluecyan:1324224790164144128>', min: 195, max: 220 }, // Blue-Cyan
+        { emoji: '<:darkblue:1324224216651923519>', min: 220, max: 255 }, // Dark Blue
     ];
 
     let closestColor = 'Unknown';
@@ -177,62 +177,63 @@ async function monitorColor() {
         let lastColor = null;
         let blueAnnounced = false;
         setInterval(async () => {
-            if (!browser || !page || (page.isClosed && page.isClosed())) {
-                console.log('Re-initializing browser...');
-                await launchBrowser();
-            }               
-            const color = await getCenterColor(page);
-            let statusEmoji = '🔵'; // Default to blue for the activity status
-        
-            if (color && color !== lastColor) {
-                addToColorLog(color);
-        
-                // Check for specific colors and map to the general emojis for the activity status
-                if (color === '<:red:1324226477268406353>') {
-                    statusEmoji = '🔴';
-                } else if (color === '<:orangered:1324226458465337365>') {
-                    statusEmoji = '🟠';
-                } else if (color === '<:orange:1324226439796621322>') {
-                    statusEmoji = '🟠';
-                } else if (color === '<:yelloworange:1324226423568728074>') {
-                    statusEmoji = '🟡';
-                } else if (color === '<:yellow:1324226408783810603>') {
-                    statusEmoji = '🟡';
-                } else if (color === '<:greenyellow:1324226389859373086>') {
-                    statusEmoji = '🟢';
-                } else if (color === '<:green:1324226357663633508>') {
-                    statusEmoji = '🟢';
-                } else if (color === '<:cyangreen:1324226321253142539>') {
-                    statusEmoji = '🟢';
-                } else if (color === '<:cyan:1324226273794461706>') {
-                    statusEmoji = '🟢';
-                } else if (color === '<:bluecyan:1324224790164144128>') {
-                    statusEmoji = '🔵';
-                } else if (color === '<:darkblue:1324224216651923519>') {
-                    statusEmoji = '🔵';
+            try {
+                if (!browser || !page || (page.isClosed && page.isClosed())) {
+                    console.log('Re-initializing browser...');
+                    await launchBrowser();
                 }
         
-                // Update bot activity status to the emoji based on detected color
-                client.user.setPresence({
-                    activities: [{ name: `the dot: ${statusEmoji}`, type: ActivityType.Watching }],
-                    status: 'online',
-                });
+                const color = await getCenterColor(page);
+                let statusEmoji = '🔵'; // Default to blue for the activity status
         
-                // Announce blue only if it wasn't already announced
-                if ((color === '<:bluecyan:1324224790164144128>' || color === '<:darkblue:1324224216651923519>') && !blueAnnounced) {
-                    const channel = await client.channels.fetch(CHANNEL_ID);
-                    await channel.send({
-                        content: `<:darkblue:1324224216651923519> **The dot is blue!**`,
-                        allowedMentions: { roles: [BLUE_ROLE_ID] }
+                if (color && color !== lastColor) {
+                    addToColorLog(color);
+        
+                    // Map specific colors to general emojis
+                    const colorMap = {
+                        '<:red:1324226477268406353>': '🔴',
+                        '<:orangered:1324226458465337365>': '🟠',
+                        '<:orange:1324226439796621322>': '🟠',
+                        '<:yelloworange:1324226423568728074>': '🟡',
+                        '<:yellow:1324226408783810603>': '🟡',
+                        '<:greenyellow:1324226389859373086>': '🟢',
+                        '<:green:1324226357663633508>': '🟢',
+                        '<:cyangreen:1324226321253142539>': '🟢',
+                        '<:cyan:1324226273794461706>': '🟢',
+                        '<:bluecyan:1324224790164144128>': '🔵',
+                        '<:darkblue:1324224216651923519>': '🔵'
+                    };
+        
+                    statusEmoji = colorMap[color] || '🔵'; // Default to blue if not mapped
+        
+                    // Update bot activity status
+                    client.user.setPresence({
+                        activities: [{ name: `the dot: ${statusEmoji}`, type: ActivityType.Watching }],
+                        status: 'online',
                     });
-                    blueAnnounced = true; // Prevent repeat announcements
-                } else if (color !== '<:bluecyan:1324224790164144128>' && color !== '<:darkblue:1324224216651923519>') {
-                    blueAnnounced = false; // Reset if color is no longer blue
-                }
         
-                lastColor = color;
+                    // Handle blue announcements
+                    if (['<:bluecyan:1324224790164144128>', '<:darkblue:1324224216651923519>'].includes(color)) {
+                        if (!blueAnnounced) {
+                            const channel = await client.channels.fetch(CHANNEL_ID);
+                            await channel.send({
+                                content: `<:darkblue:1324224216651923519> **The dot is blue!**`,
+                                allowedMentions: { roles: [BLUE_ROLE_ID] }
+                            });
+                            blueAnnounced = true;
+                        }
+                    } else {
+                        if (blueAnnounced) {
+                            blueAnnounced = false; // Reset if the color changes
+                        }
+                    }
+        
+                    lastColor = color;
+                }
+            } catch (error) {
+                console.error('Error in color detection loop:', error);
             }
-        }, 15000);
+        }, 15000);        
 
         // Restart the browser every hour
         setInterval(async () => {

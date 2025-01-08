@@ -253,7 +253,7 @@ async function monitorColor() {
                     });
         
                     // Handle blue announcements with cooldown
-                    if (['<:bluecyan:1324224790164144128>', '<:darkblue:1324224216651923519>'].includes(color)) {
+                    if (['<:darkblue:1324224216651923519>'].includes(color)) {
                         if (!blueAnnounced && !wasBlueRecently()) {
                             const channel = await client.channels.fetch(CHANNEL_ID);
                             await channel.send({

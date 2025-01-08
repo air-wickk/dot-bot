@@ -35,7 +35,7 @@ app.listen(port, () => {
 
 // 📊 Color Tracking Data with Limit
 const colorLog = [];
-const MAX_COLOR_LOG_SIZE = 100; // Limit the log to the last 100 entries
+const MAX_COLOR_LOG_SIZE = 20; // Limit the log to the last 20 entries
 
 // Update log with size restriction
 function addToColorLog(color) {
@@ -47,19 +47,27 @@ function addToColorLog(color) {
     }
 }
 
-function wasBlueRecently() {
-    //console.log(`Color Log Length: ${colorLog.length}`);
-    //console.log(`Recent Colors: ${colorLog.slice(-20).map(entry => entry.color).join(', ')}`);
+let lastBlueTimestamp = null; // Tracks the last time blue was detected
 
-    if (colorLog.length === 1 && ['<:bluecyan:1324224790164144128>', '<:darkblue:1324224216651923519>'].includes(colorLog[0].color)) {
-        //console.log('First blue or bluecyan detected after bot start.');
-        return false; // Allow the message for the first entry
+function wasBlueRecently() {
+    const BLUE_COLORS = ['<:bluecyan:1324224790164144128>', '<:darkblue:1324224216651923519>'];
+
+    // Check if the current color log has blue in the last 15 entries
+    const recentBlue = colorLog.slice(-15).some(entry => BLUE_COLORS.includes(entry.color));
+
+    // If blue is in the last 15 entries, update the timestamp
+    if (recentBlue) {
+        lastBlueTimestamp = Date.now();
+        return true;
     }
 
-    // Check the last 20 entries for blue or bluecyan
-    return colorLog.slice(-20).some(entry => 
-        ['<:bluecyan:1324224790164144128>', '<:darkblue:1324224216651923519>'].includes(entry.color)
-    );
+    // If it's been more than 15 minutes since the last detected blue
+    if (lastBlueTimestamp && (Date.now() - lastBlueTimestamp > 15 * 60 * 1000)) {
+        lastBlueTimestamp = null; // Reset the timestamp after timeout
+        return false; // Blue detected again after a long time
+    }
+
+    return false;
 }
 
 // 📊 Function to classify color into categories using Euclidean distance
@@ -122,9 +130,12 @@ function rgbToHsl(r, g, b) {
     return [h * 360, s, l];
 }
 
+let browser = null; // Declare browser globally
+let page = null; // Declare page globally
+
 // Define launchBrowser outside of monitorColor
 async function launchBrowser() {
-    if (browser) await browser.close(); // Close existing browser if it exists
+    if (browser) await browser.close(); // Close existing browser if any
     browser = await puppeteer.launch({
         headless: true,
         args: [
@@ -132,49 +143,45 @@ async function launchBrowser() {
             '--disable-setuid-sandbox',
             '--disable-gpu',
             '--disable-dev-shm-usage'
-        ]
+        ],
+        protocolTimeout: 30000
     });
     page = await browser.newPage();
+    await page.setDefaultNavigationTimeout(30000); // Timeout for navigation
     await page.goto('https://global-mind.org/gcpdot/gcp.html', { waitUntil: 'networkidle0' });
 }
 
 // Function to get the center color of the screenshot
 async function getCenterColor(page, retries = 3) {
     try {
+        if (!browser || !page || page.isClosed()) {
+            console.warn('Browser or page is not valid. Relaunching...');
+            await launchBrowser();
+        }
+
         let screenshot;
 
-        // Retry mechanism for taking a screenshot
         for (let i = 0; i < retries; i++) {
             try {
-                // Ensure the page is valid and open
-                if (!page || page.isClosed()) {
-                    console.warn('Page is closed or invalid. Restarting browser...');
-                    await launchBrowser(); // Restart browser if the page is closed
-                    return null;
-                }
-
-                // Ensure the page is fully loaded
                 const isPageOk = await page.evaluate(() => document.readyState === 'complete');
                 if (!isPageOk) {
-                    console.warn('Page is not fully loaded. Reloading...');
+                    console.warn('Page not fully loaded. Reloading...');
                     await page.reload({ waitUntil: 'load' });
-                    await new Promise(r => setTimeout(r, 2000)); // Wait after reload
+                    await new Promise(r => setTimeout(r, 2000));
                 }
 
-                // Take the screenshot
-                await new Promise(r => setTimeout(r, 2000)); // Small delay to ensure stability
+                await new Promise(r => setTimeout(r, 2000)); // Stability delay
                 screenshot = await page.screenshot({
                     fullPage: true,
                     encoding: 'base64',
-                    timeout: 60000, // Increased timeout
+                    timeout: 60000,
                 });
 
-                if (screenshot) break; // Exit retry loop on successful screenshot
-
+                if (screenshot) break;
             } catch (error) {
                 console.warn(`Retry ${i + 1}: Failed to take screenshot`, error.message);
-                if (i === retries - 1) throw error; // Fail after final retry
-                await new Promise(res => setTimeout(res, 2000)); // Wait before retrying
+                if (i === retries - 1) throw error;
+                await new Promise(res => setTimeout(res, 2000));
             }
         }
 
@@ -183,7 +190,6 @@ async function getCenterColor(page, retries = 3) {
             return null;
         }
 
-        // Evaluate the center color using the screenshot
         const color = await page.evaluate((screenshot) => {
             return new Promise((resolve, reject) => {
                 try {
@@ -196,9 +202,9 @@ async function getCenterColor(page, retries = 3) {
                         const ctx = canvas.getContext('2d');
                         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
                         const pixel = ctx.getImageData(
-                            Math.floor(canvas.width / 2), 
-                            Math.floor(canvas.height / 2), 
-                            1, 
+                            Math.floor(canvas.width / 2),
+                            Math.floor(canvas.height / 2),
+                            1,
                             1
                         ).data;
                         resolve([pixel[0], pixel[1], pixel[2]]);
@@ -208,9 +214,9 @@ async function getCenterColor(page, retries = 3) {
                     reject(err);
                 }
             });
-        }, screenshot); // Pass `screenshot` to evaluate
+        }, screenshot);
 
-        return classifyColor(color[0], color[1], color[2]); // Assuming `classifyColor` exists
+        return classifyColor(color[0], color[1], color[2]);
 
     } catch (error) {
         console.error('Error in getCenterColor:', error.message);
@@ -220,47 +226,21 @@ async function getCenterColor(page, retries = 3) {
 
 // 🚨 Monitor center color and send Discord alerts for "Blue"
 async function monitorColor() {
-    let browser = null;
-    let page = null;
-
     try {
-        // Function to launch the browser and page
-        async function launchBrowser() {
-            if (browser) await browser.close(); // Close any existing browser
-            browser = await puppeteer.launch({
-                headless: true,
-                args: [
-                    '--no-sandbox',
-                    '--disable-setuid-sandbox',
-                    '--disable-gpu',
-                    '--disable-dev-shm-usage'
-                ]
-            });
-            page = await browser.newPage();
-            await page.goto('https://global-mind.org/gcpdot/gcp.html', { waitUntil: 'networkidle0' });
-        }
-
-        // Launch browser initially
         await launchBrowser();
-
-        let lastColor = null;
 
         setInterval(async () => {
             try {
-                // Ensure the browser and page are valid, reopen if necessary
                 if (!browser || !page || page.isClosed()) {
-                    console.log('Re-initializing browser...');
+                    console.warn('Browser or page closed. Relaunching...');
                     await launchBrowser();
                 }
-        
+
                 const color = await getCenterColor(page);
-                let statusEmoji = '🔵'; // Default to blue for the activity status
-        
-                // Always add to the log every time
+
                 if (color) {
                     addToColorLog(color);
-        
-                    // Map specific colors to general emojis
+
                     const colorMap = {
                         '<:red:1324226477268406353>': '🔴',
                         '<:orangered:1324226458465337365>': '🟠',
@@ -273,20 +253,18 @@ async function monitorColor() {
                         '<:cyan:1324226273794461706>': '🟢',
                         '<:bluecyan:1324224790164144128>': '🔵',
                         '<:darkblue:1324224216651923519>': '🔵',
-                        '<:pink:1326324208279490581>': '⚪' // Map pink anomaly to white
+                        '<:pink:1326324208279490581>': '⚪'
                     };
-        
-                    statusEmoji = colorMap[color] || '⚪'; // Default to white if not mapped (anomaly)
-        
-                    // Update bot activity status
+
+                    const statusEmoji = colorMap[color] || '⚪';
+
                     client.user.setPresence({
                         activities: [{ name: `the dot: ${statusEmoji}`, type: ActivityType.Watching }],
                         status: 'online',
                     });
-        
-                    // Handle blue announcements with cooldown
+
                     if (['<:darkblue:1324224216651923519>', '<:bluecyan:1324224790164144128>'].includes(color)) {
-                        if (!wasBlueRecently()) { // Check if blue hasn't been announced recently
+                        if (!wasBlueRecently()) {
                             const channel = await client.channels.fetch(CHANNEL_ID);
                             await channel.send({
                                 content: `${colorMap[color]} **The dot is blue!**`,
@@ -298,13 +276,12 @@ async function monitorColor() {
             } catch (error) {
                 console.error('Error in color detection loop:', error);
             }
-        }, 15000); // Every 15 seconds               
+        }, 15000);
 
-        // Restart the browser every hour
         setInterval(async () => {
             console.log("Restarting browser...");
             await launchBrowser();
-        }, 1800000); // 30 mins in milliseconds
+        }, 1800000); // Every 30 minutes
 
     } catch (error) {
         console.error("Error during color monitoring:", error);
@@ -339,9 +316,9 @@ client.on('ready', async () => {
 
 // Command handler for !log
 client.on('messageCreate', async (message) => {
-    if (message.content.startsWith('dotlog')) {
+    if (message.content.startsWith('!dotlog')) {
         const args = message.content.split(' '); // Split the command into arguments
-        const numEntries = args[1] ? parseInt(args[1]) : 20; // Get the number of entries to display (default is 20)
+        const numEntries = args[1] ? parseInt(args[1]) : 15; // Get the number of entries to display (default is 20)
 
         if (isNaN(numEntries) || numEntries <= 0) {
             return message.channel.send("Please specify a valid number of entries.");

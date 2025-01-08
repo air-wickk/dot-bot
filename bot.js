@@ -39,13 +39,24 @@ const MAX_COLOR_LOG_SIZE = 100; // Limit the log to the last 100 entries
 
 // Update log with size restriction
 function addToColorLog(color) {
-    colorLog.push({ color, timestamp: Date.now() });
+    const currentTimestamp = Date.now();
+    //console.log(`Adding color: ${color} with timestamp: ${currentTimestamp}`);
+    colorLog.push({ color, timestamp: currentTimestamp });
     if (colorLog.length > MAX_COLOR_LOG_SIZE) {
-        colorLog.shift(); // Remove the oldest entry
+        colorLog.shift(); // Remove the oldest entry if the log exceeds the max size
     }
 }
 
 function wasBlueRecently() {
+    //console.log(`Color Log Length: ${colorLog.length}`);
+    //console.log(`Recent Colors: ${colorLog.slice(-20).map(entry => entry.color).join(', ')}`);
+
+    if (colorLog.length === 1 && ['<:bluecyan:1324224790164144128>', '<:darkblue:1324224216651923519>'].includes(colorLog[0].color)) {
+        //console.log('First blue or bluecyan detected after bot start.');
+        return false; // Allow the message for the first entry
+    }
+
+    // Check the last 20 entries for blue or bluecyan
     return colorLog.slice(-20).some(entry => 
         ['<:bluecyan:1324224790164144128>', '<:darkblue:1324224216651923519>'].includes(entry.color)
     );
@@ -213,7 +224,6 @@ async function monitorColor() {
         await launchBrowser();
 
         let lastColor = null;
-        let blueAnnounced = false;
 
         setInterval(async () => {
             try {
@@ -224,10 +234,11 @@ async function monitorColor() {
         
                 const color = await getCenterColor(page);
                 let statusEmoji = '🔵'; // Default to blue for the activity status
-                
-                if (color && color !== lastColor) {
+        
+                // Always add to the log every time
+                if (color) {
                     addToColorLog(color);
-                
+        
                     // Map specific colors to general emojis
                     const colorMap = {
                         '<:red:1324226477268406353>': '🔴',
@@ -243,7 +254,7 @@ async function monitorColor() {
                         '<:darkblue:1324224216651923519>': '🔵',
                         '<:pink:1326324208279490581>': '⚪' // Map pink anomaly to white
                     };
-                
+        
                     statusEmoji = colorMap[color] || '⚪'; // Default to white if not mapped (anomaly)
         
                     // Update bot activity status
@@ -253,27 +264,20 @@ async function monitorColor() {
                     });
         
                     // Handle blue announcements with cooldown
-                    if (['<:darkblue:1324224216651923519>'].includes(color)) {
-                        if (!blueAnnounced && !wasBlueRecently()) {
+                    if (['<:darkblue:1324224216651923519>', '<:bluecyan:1324224790164144128>'].includes(color)) {
+                        if (!wasBlueRecently()) { // Check if blue hasn't been announced recently
                             const channel = await client.channels.fetch(CHANNEL_ID);
                             await channel.send({
-                                content: `<:darkblue:1324224216651923519> **The dot is blue!**`,
+                                content: `${colorMap[color]} **The dot is blue!**`,
                                 allowedMentions: { roles: [BLUE_ROLE_ID] }
                             });
-                            blueAnnounced = true;
-                        }
-                    } else {
-                        if (blueAnnounced) {
-                            blueAnnounced = false; // Reset if the color changes
                         }
                     }
-        
-                    lastColor = color;
                 }
             } catch (error) {
                 console.error('Error in color detection loop:', error);
             }
-        }, 15000);        
+        }, 15000); // Every 15 seconds               
 
         // Restart the browser every hour
         setInterval(async () => {
@@ -310,6 +314,59 @@ client.on('ready', async () => {
     );
     
     monitorColor();
+});
+
+// Command handler for !log
+client.on('messageCreate', async (message) => {
+    if (message.content.startsWith('dotlog')) {
+        const args = message.content.split(' '); // Split the command into arguments
+        const numEntries = args[1] ? parseInt(args[1]) : 20; // Get the number of entries to display (default is 20)
+
+        if (isNaN(numEntries) || numEntries <= 0) {
+            return message.channel.send("Please specify a valid number of entries.");
+        }
+
+        // Get the most recent `numEntries` from the color log
+        const recentColors = colorLog.slice(-numEntries);  // Get the last `numEntries` colors
+        if (recentColors.length === 0) {
+            return message.channel.send("📭 **The color log is empty.**");
+        }
+
+        // Format the color log entries with colors and relative timestamps
+        const colorLogMessages = recentColors.map(entry => {
+            const relativeTime = `<t:${Math.floor(entry.timestamp / 1000)}:R>`;
+            return `Color: ${entry.color} (${relativeTime})`;  // Color and relative time in compact format
+        });
+
+        // Join the formatted entries into a single string, separating by ' | '
+        const logMessage = `**Last ${numEntries} Color Log Entries:**\n${colorLogMessages.join(" | ")}`;
+
+        // Ensure the message doesn't exceed Discord's character limit
+        const MAX_MESSAGE_LENGTH = 2000; // Discord's message limit
+        if (logMessage.length > MAX_MESSAGE_LENGTH) {
+            // Split the message into chunks if it's too long
+            const chunks = [];
+            let currentChunk = "";
+            colorLogMessages.forEach((msg, index) => {
+                // Add the message to the current chunk
+                if ((currentChunk + msg).length < MAX_MESSAGE_LENGTH) {
+                    currentChunk += msg + " | ";  // Use pipe to separate entries
+                } else {
+                    chunks.push(currentChunk.trim());  // Remove trailing pipe and add to chunks
+                    currentChunk = msg + " | ";
+                }
+            });
+            chunks.push(currentChunk.trim()); // Add the last chunk
+
+            // Send each chunk separately
+            for (const chunk of chunks) {
+                await message.channel.send(chunk);
+            }
+        } else {
+            // Send the message if it fits within the limit
+            message.channel.send(logMessage);
+        }
+    }
 });
 
 client.on('interactionCreate', async (interaction) => {

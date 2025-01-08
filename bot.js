@@ -220,15 +220,35 @@ async function getCenterColor(page, retries = 3) {
 
 // 🚨 Monitor center color and send Discord alerts for "Blue"
 async function monitorColor() {
-    let lastColor = null;
+    let browser = null;
+    let page = null;
 
     try {
+        // Function to launch the browser and page
+        async function launchBrowser() {
+            if (browser) await browser.close(); // Close any existing browser
+            browser = await puppeteer.launch({
+                headless: true,
+                args: [
+                    '--no-sandbox',
+                    '--disable-setuid-sandbox',
+                    '--disable-gpu',
+                    '--disable-dev-shm-usage'
+                ]
+            });
+            page = await browser.newPage();
+            await page.goto('https://global-mind.org/gcpdot/gcp.html', { waitUntil: 'networkidle0' });
+        }
+
         // Launch browser initially
         await launchBrowser();
 
+        let lastColor = null;
+
         setInterval(async () => {
             try {
-                if (!browser || !page || (page.isClosed && page.isClosed())) {
+                // Ensure the browser and page are valid, reopen if necessary
+                if (!browser || !page || page.isClosed()) {
                     console.log('Re-initializing browser...');
                     await launchBrowser();
                 }
@@ -260,7 +280,7 @@ async function monitorColor() {
         
                     // Update bot activity status
                     client.user.setPresence({
-                        activities: [{ name: `the dot: ${statusEmoji}`, type: ActivityType.Watching }], // Changed from `name` to `activity`
+                        activities: [{ name: `the dot: ${statusEmoji}`, type: ActivityType.Watching }],
                         status: 'online',
                     });
         

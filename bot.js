@@ -122,6 +122,23 @@ function rgbToHsl(r, g, b) {
     return [h * 360, s, l];
 }
 
+// Define launchBrowser outside of monitorColor
+async function launchBrowser() {
+    if (browser) await browser.close(); // Close existing browser if it exists
+    browser = await puppeteer.launch({
+        headless: true,
+        args: [
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-gpu',
+            '--disable-dev-shm-usage'
+        ]
+    });
+    page = await browser.newPage();
+    await page.goto('https://global-mind.org/gcpdot/gcp.html', { waitUntil: 'networkidle0' });
+}
+
+// Function to get the center color of the screenshot
 async function getCenterColor(page, retries = 3) {
     try {
         let screenshot;
@@ -132,7 +149,7 @@ async function getCenterColor(page, retries = 3) {
                 // Ensure the page is valid and open
                 if (!page || page.isClosed()) {
                     console.warn('Page is closed or invalid. Restarting browser...');
-                    await launchBrowser();
+                    await launchBrowser(); // Restart browser if the page is closed
                     return null;
                 }
 
@@ -203,27 +220,11 @@ async function getCenterColor(page, retries = 3) {
 
 // 🚨 Monitor center color and send Discord alerts for "Blue"
 async function monitorColor() {
-    let browser, page;
-    try {
-        async function launchBrowser() {
-            if (browser) await browser.close(); // Close existing browser
-            browser = await puppeteer.launch({
-                headless: true,
-                args: [
-                    '--no-sandbox',
-                    '--disable-setuid-sandbox',
-                    '--disable-gpu',
-                    '--disable-dev-shm-usage'
-                ]
-            });
-            page = await browser.newPage();
-            await page.goto('https://global-mind.org/gcpdot/gcp.html', { waitUntil: 'networkidle0' });
-        }
+    let lastColor = null;
 
+    try {
         // Launch browser initially
         await launchBrowser();
-
-        let lastColor = null;
 
         setInterval(async () => {
             try {
@@ -259,7 +260,7 @@ async function monitorColor() {
         
                     // Update bot activity status
                     client.user.setPresence({
-                        activities: [{ name: `the dot: ${statusEmoji}`, type: ActivityType.Watching }],
+                        activities: [{ name: `the dot: ${statusEmoji}`, type: ActivityType.Watching }], // Changed from `name` to `activity`
                         status: 'online',
                     });
         

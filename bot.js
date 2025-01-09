@@ -216,8 +216,9 @@ async function getCenterColor(page, retries = 3) {
     }
 }
 
+let lastColor = null; // Tracks the last detected color
 let lastBlueNotificationTime = 0; // Tracks the last time a blue notification was sent
-const COOLDOWN_PERIOD = 10 * 60 * 1000; // 10 minutes in milliseconds
+const COOLDOWN_PERIOD = 15 * 60 * 1000; // 15 minutes in milliseconds
 
 async function monitorColor() {
     try {
@@ -257,7 +258,10 @@ async function monitorColor() {
                         status: 'online',
                     });
 
-                    if (['<:darkblue:1324224216651923519>', '<:bluecyan:1324224790164144128>'].includes(color)) {
+                    if (
+                        ['<:darkblue:1324224216651923519>', '<:bluecyan:1324224790164144128>'].includes(color) && // Color is blue
+                        (!['<:darkblue:1324224216651923519>', '<:bluecyan:1324224790164144128>'].includes(lastColor)) // Transitioned from non-blue
+                    ) {
                         const now = Date.now();
 
                         // Check cooldown before sending a message
@@ -271,9 +275,12 @@ async function monitorColor() {
                             console.log(`Notification sent for color: ${color}`);
                             lastBlueNotificationTime = now; // Update the last notification time
                         } else {
-                            console.log("The dot is blue, but cooldown is active.");
+                            console.log("The dot turned blue, but cooldown is active.");
                         }
                     }
+
+                    // Update the last detected color
+                    lastColor = color;
                 }
             } catch (error) {
                 console.error('Error in color detection loop:', error);
@@ -289,6 +296,7 @@ async function monitorColor() {
         console.error("Error during color monitoring:", error);
     }
 }
+
 
 // 🗨️ Commands
 client.on('ready', async () => {

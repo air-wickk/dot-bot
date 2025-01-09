@@ -50,24 +50,16 @@ function addToColorLog(color) {
 let lastBlueTimestamp = null; // Tracks the last time blue was detected
 
 function wasBlueRecently() {
-    const BLUE_COLORS = ['<:bluecyan:1324224790164144128>', '<:darkblue:1324224216651923519>'];
+    //console.log(Color Log Length: ${colorLog.length});
+    //console.log(Recent Colors: ${colorLog.slice(-15).map(entry => entry.color).join(', ')});
 
-    // Check if the current color log has blue in the last 15 entries
-    const recentBlue = colorLog.slice(-15).some(entry => BLUE_COLORS.includes(entry.color));
-
-    // If blue is in the last 15 entries, update the timestamp
-    if (recentBlue) {
-        lastBlueTimestamp = Date.now();
-        return true;
+    if (colorLog.length === 1 && ['<:bluecyan:1324224790164144128>', '<:darkblue:1324224216651923519>'].includes(colorLog[0].color)) {
+        //console.log('First blue or bluecyan detected after bot start.');
+        return false; // Allow the message for the first entry
     }
 
-    // If it's been more than 15 minutes since the last detected blue
-    if (lastBlueTimestamp && (Date.now() - lastBlueTimestamp > 15 * 60 * 1000)) {
-        lastBlueTimestamp = null; // Reset the timestamp after timeout
-        return false; // Blue detected again after a long time
-    }
-
-    return false;
+    // Check the last 15 entries for blue or bluecyan
+    return colorLog.slice(-16, -1).some(entry => BLUE_COLORS.includes(entry.color));
 }
 
 // 📊 Function to classify color into categories using Euclidean distance

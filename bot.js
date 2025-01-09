@@ -47,9 +47,9 @@ function addToColorLog(color) {
     }
 }
 
-let lastBlueTimestamp = null; // Tracks the last time blue was detected
+/* let lastBlueTimestamp = null; // Tracks the last time blue was detected
 
-function wasBlueRecently() {
+ function wasBlueRecently() {
     //console.log(Color Log Length: ${colorLog.length});
     //console.log(Recent Colors: ${colorLog.slice(-15).map(entry => entry.color).join(', ')});
 
@@ -60,7 +60,7 @@ function wasBlueRecently() {
 
     // Check the last 15 entries for blue or bluecyan
     return colorLog.slice(-16, -1).some(entry => BLUE_COLORS.includes(entry.color));
-}
+} */
 
 // 📊 Function to classify color into categories using Euclidean distance
 function classifyColor(r, g, b) {
@@ -216,7 +216,9 @@ async function getCenterColor(page, retries = 3) {
     }
 }
 
-// 🚨 Monitor center color and send Discord alerts for "Blue"
+let lastBlueNotificationTime = 0; // Tracks the last time a blue notification was sent
+const COOLDOWN_PERIOD = 10 * 60 * 1000; // 10 minutes in milliseconds
+
 async function monitorColor() {
     try {
         await launchBrowser();
@@ -256,12 +258,20 @@ async function monitorColor() {
                     });
 
                     if (['<:darkblue:1324224216651923519>', '<:bluecyan:1324224790164144128>'].includes(color)) {
-                        if (!wasBlueRecently()) {
+                        const now = Date.now();
+
+                        // Check cooldown before sending a message
+                        if (now - lastBlueNotificationTime > COOLDOWN_PERIOD) {
                             const channel = await client.channels.fetch(CHANNEL_ID);
                             await channel.send({
                                 content: `${colorMap[color]} **The dot is blue!**`,
                                 allowedMentions: { roles: [BLUE_ROLE_ID] }
                             });
+
+                            console.log(`Notification sent for color: ${color}`);
+                            lastBlueNotificationTime = now; // Update the last notification time
+                        } else {
+                            console.log("The dot is blue, but cooldown is active.");
                         }
                     }
                 }

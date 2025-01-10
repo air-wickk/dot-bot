@@ -218,7 +218,7 @@ async function getCenterColor(page, retries = 3) {
 
 let lastColor = null; // Tracks the last detected color
 let lastBlueNotificationTime = 0; // Tracks the last time a blue notification was sent
-const COOLDOWN_PERIOD = 15 * 60 * 1000; // 15 minutes in milliseconds
+const COOLDOWN_PERIOD = 30 * 60 * 1000; // 30 minutes in milliseconds
 
 async function monitorColor() {
     try {

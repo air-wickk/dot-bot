@@ -66,8 +66,8 @@ function addToColorLog(color) {
 function classifyColor(r, g, b) {
     const hsl = rgbToHsl(r, g, b);
     const hue = hsl[0];
-    const saturation = hsl[1];
-    const lightness = hsl[2];
+    const saturation = hsl[1] * 100; // Convert to percentage for easier reading
+    const lightness = hsl[2] * 100; // Convert to percentage for easier reading
 
     // Mapping the hue to the closest custom emojis based on hue values
     const colors = [
@@ -86,6 +86,7 @@ function classifyColor(r, g, b) {
 
     let closestColor = '<:pink:1326324208279490581>'; // Default to pink if no match
 
+    // Classify based on hue
     for (let color of colors) {
         if (hue >= color.min && hue < color.max) {
             closestColor = color.emoji;
@@ -93,11 +94,15 @@ function classifyColor(r, g, b) {
         }
     }
 
-    /* Special case for anomaly detection (e.g., highly desaturated or light pinks)
-    if (closestColor === '<:pink:1326324208279490581>' && saturation < 30 && lightness > 70) {
+    // Special case for pink classification
+    if (
+        closestColor === '<:red:1324226477268406353>' && // Initially classified as red
+        saturation < 30 && // Low saturation
+        lightness > 70 // High lightness
+    ) {
         closestColor = '<:pink:1326324208279490581>';
     }
-*/
+
     return closestColor;
 }
 
@@ -106,7 +111,8 @@ function rgbToHsl(r, g, b) {
     r /= 255;
     g /= 255;
     b /= 255;
-    let max = Math.max(r, g, b), min = Math.min(r, g, b);
+    let max = Math.max(r, g, b),
+        min = Math.min(r, g, b);
     let h, s, l = (max + min) / 2;
 
     if (max === min) {

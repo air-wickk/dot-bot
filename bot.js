@@ -93,11 +93,11 @@ function classifyColor(r, g, b) {
         }
     }
 
-    // Special case for anomaly detection (e.g., highly desaturated or light pinks)
+    /* Special case for anomaly detection (e.g., highly desaturated or light pinks)
     if (closestColor === '<:pink:1326324208279490581>' && saturation < 30 && lightness > 70) {
         closestColor = '<:pink:1326324208279490581>';
     }
-
+*/
     return closestColor;
 }
 

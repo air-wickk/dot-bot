@@ -259,7 +259,7 @@ async function monitorColor() {
                     });
 
                     if (
-                        ['<:darkblue:1324224216651923519>'].includes(color) && // Color is blue
+                        ['<:darkblue:1324224216651923519>','<:bluecyan:1324224790164144128>' ].includes(color) && // Color is blue
                         (!['<:darkblue:1324224216651923519>','<:bluecyan:1324224790164144128>'].includes(lastColor)) // Transitioned from non-blue
                     ) {
                         const now = Date.now();

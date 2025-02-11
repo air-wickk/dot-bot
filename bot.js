@@ -82,6 +82,7 @@ function classifyColor(r, g, b) {
         { emoji: '<:cyan:1324226273794461706>', min: 170, max: 195 }, // Cyan
         { emoji: '<:bluecyan:1324224790164144128>', min: 195, max: 220 }, // Blue-Cyan
         { emoji: '<:darkblue:1324224216651923519>', min: 220, max: 255 }, // Dark Blue
+        { emoji: '<:pink:1326324208279490581>', min: 300, max: 350 } // **Explicitly define pink**
     ];
 
     let closestColor = '<:pink:1326324208279490581>'; // Default to pink if no match
@@ -92,15 +93,6 @@ function classifyColor(r, g, b) {
             closestColor = color.emoji;
             break;
         }
-    }
-
-    // Special case for pink classification
-    if (
-        closestColor === '<:red:1324226477268406353>' && // Initially classified as red
-        saturation < 30 && // Low saturation
-        lightness > 70 // High lightness
-    ) {
-        closestColor = '<:pink:1326324208279490581>';
     }
 
     return closestColor;
@@ -252,8 +244,8 @@ async function monitorColor() {
                         '<:green:1324226357663633508>': '🟢',
                         '<:cyangreen:1324226321253142539>': '🟢',
                         '<:cyan:1324226273794461706>': '🟢',
-                        '<:bluecyan:1324224790164144128>': '🔵',
-                        '<:darkblue:1324224216651923519>': '🔵',
+                        '<:bluecyan:1324224790164144128>': '🟠', // NOT blue
+                        '<:darkblue:1324224216651923519>': '🔵', // True blue
                         '<:pink:1326324208279490581>': '⚪'
                     };
 
@@ -264,9 +256,11 @@ async function monitorColor() {
                         status: 'online',
                     });
 
+                    // Condition for sending the "dot is blue" message
                     if (
-                        ['<:darkblue:1324224216651923519>','<:bluecyan:1324224790164144128>' ].includes(color) && // Color is blue
-                        (!['<:darkblue:1324224216651923519>','<:bluecyan:1324224790164144128>'].includes(lastColor)) // Transitioned from non-blue
+                        color === '<:darkblue:1324224216651923519>' && // Only true blue triggers the message
+                        lastColor !== '<:darkblue:1324224216651923519>' && // Prevent repeat messages
+                        lastColor !== '<:bluecyan:1324224790164144128>' // Prevent blue-cyan -> blue transitions from triggering
                     ) {
                         const now = Date.now();
 
@@ -279,7 +273,7 @@ async function monitorColor() {
                             });
 
                             console.log(`Notification sent for color: ${color}`);
-                            lastBlueNotificationTime = now; // Update the last notification time
+                            lastBlueNotificationTime = now; // Update last notification time
                         } else {
                             console.log("The dot turned blue, but cooldown is active.");
                         }

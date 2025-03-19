@@ -265,28 +265,25 @@ async function monitorColor() {
                     });
 
                     if (
-                        ['<:darkblue:1324224216651923519>','<:bluecyan:1324224790164144128>'].includes(color)
+                        ['<:darkblue:1324224216651923519>','<:bluecyan:1324224790164144128>' ].includes(color) && // Color is blue
+                        (!['<:darkblue:1324224216651923519>','<:bluecyan:1324224790164144128>'].includes(lastColor)) // Transitioned from non-blue
                     ) {
                         const now = Date.now();
-                    
-                        // Check if the last 4 entries in the log are blue
-                        const lastFourAreBlue = colorLog.slice(-4).every(entry =>
-                            ['<:darkblue:1324224216651923519>', '<:bluecyan:1324224790164144128>'].includes(entry.color)
-                        );
-                    
-                        if (lastFourAreBlue && (now - lastBlueNotificationTime > COOLDOWN_PERIOD)) {
+
+                        // Check cooldown before sending a message
+                        if (now - lastBlueNotificationTime > COOLDOWN_PERIOD) {
                             const channel = await client.channels.fetch(CHANNEL_ID);
                             await channel.send({
                                 content: `${colorMap[color]} **The dot is blue!**`,
                                 allowedMentions: { roles: [BLUE_ROLE_ID] }
                             });
-                    
+
                             console.log(`Notification sent for color: ${color}`);
                             lastBlueNotificationTime = now; // Update the last notification time
                         } else {
-                            console.log("The dot is blue, but conditions not met (not four times in a row or cooldown active).");
+                            console.log("The dot turned blue, but cooldown is active.");
                         }
-                    }                    
+                    }
 
                     // Update the last detected color
                     lastColor = color;

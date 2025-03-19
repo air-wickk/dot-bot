@@ -40,11 +40,27 @@ const MAX_COLOR_LOG_SIZE = 20; // Limit the log to the last 20 entries
 // Update log with size restriction
 function addToColorLog(color) {
     const currentTimestamp = Date.now();
+    //console.log(`Adding color: ${color} with timestamp: ${currentTimestamp}`);
     colorLog.push({ color, timestamp: currentTimestamp });
     if (colorLog.length > MAX_COLOR_LOG_SIZE) {
         colorLog.shift(); // Remove the oldest entry if the log exceeds the max size
     }
 }
+
+/* let lastBlueTimestamp = null; // Tracks the last time blue was detected
+
+ function wasBlueRecently() {
+    //console.log(Color Log Length: ${colorLog.length});
+    //console.log(Recent Colors: ${colorLog.slice(-15).map(entry => entry.color).join(', ')});
+
+    if (colorLog.length === 1 && ['<:bluecyan:1324224790164144128>', '<:darkblue:1324224216651923519>'].includes(colorLog[0].color)) {
+        //console.log('First blue or bluecyan detected after bot start.');
+        return false; // Allow the message for the first entry
+    }
+
+    // Check the last 15 entries for blue or bluecyan
+    return colorLog.slice(-16, -1).some(entry => BLUE_COLORS.includes(entry.color));
+} */
 
 // 📊 Function to classify color into categories using Euclidean distance
 function classifyColor(r, g, b) {
@@ -162,11 +178,6 @@ async function getCenterColor(page, retries = 3) {
                 if (screenshot) break;
             } catch (error) {
                 console.warn(`Retry ${i + 1}: Failed to take screenshot`, error.message);
-                if (error.message.includes('detached frame')) {
-                    console.warn('Detected detached frame, reloading page...');
-                    await page.reload({ waitUntil: 'load' });
-                    await new Promise(res => setTimeout(res, 2000));
-                }
                 if (i === retries - 1) throw error;
                 await new Promise(res => setTimeout(res, 2000));
             }
@@ -219,7 +230,7 @@ async function monitorColor() {
     try {
         await launchBrowser();
 
-        while (true) {
+        setInterval(async () => {
             try {
                 if (!browser || !page || page.isClosed()) {
                     console.warn('Browser or page closed. Relaunching...');
@@ -283,19 +294,37 @@ async function monitorColor() {
             } catch (error) {
                 console.error('Error in color detection loop:', error);
             }
+        }, 15000);
 
-            // Wait for 15 seconds before the next check
-            await new Promise(res => setTimeout(res, 15000));
-        }
+        setInterval(async () => {
+            console.log("Restarting browser...");
+            await launchBrowser();
+        }, 1800000); // Every 30 minutes
+
     } catch (error) {
         console.error("Error during color monitoring:", error);
     }
 }
 
+
 // 🗨️ Commands
 client.on('ready', async () => {
     console.log(`✅ Logged in as ${client.user.tag}!`);
     
+    /* Delete global commands
+
+    const clientId = "1323744486811111473"; // bot's client ID here
+    const commandId = "1324218706997542913"; // command ID to delete
+
+    const rest = new REST({ version: '10' }).setToken(BOT_TOKEN);
+    try {
+        await rest.delete(Routes.applicationCommand(clientId, commandId));
+        console.log('Successfully deleted the global command');
+    } catch (error) {
+        console.error('Error deleting command:', error);
+    }
+    */
+
     // Register new command
     await client.application.commands.create(
         new SlashCommandBuilder().setName('dotcolor').setDescription('Get the current color of the dot!')

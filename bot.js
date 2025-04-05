@@ -1,6 +1,6 @@
 // node bot.js to run
 const puppeteer = require('puppeteer');
-const { Client, GatewayIntentBits, SlashCommandBuilder, ActivityType, REST, Routes } = require('discord.js');
+const { Client, GatewayIntentBits, SlashCommandBuilder, ActivityType } = require('discord.js');
 const express = require('express');
 const ColorDetector = require('./ColorDetector'); // Import the ColorDetector class
 require('dotenv').config();
@@ -42,20 +42,27 @@ let page = null; // Declare page globally
 
 // Define launchBrowser outside of monitorColor
 async function launchBrowser() {
-    if (browser) await browser.close(); // Close existing browser if any
-    browser = await puppeteer.launch({
-        headless: true,
-        args: [
-            '--no-sandbox',
-            '--disable-setuid-sandbox',
-            '--disable-gpu',
-            '--disable-dev-shm-usage'
-        ],
-        protocolTimeout: 30000
-    });
-    page = await browser.newPage();
-    await page.setDefaultNavigationTimeout(30000); // Timeout for navigation
-    await page.goto('https://global-mind.org/gcpdot/gcp.html', { waitUntil: 'networkidle0' });
+    try {
+        if (browser) await browser.close(); // Close existing browser if any
+        browser = await puppeteer.launch({
+            headless: true,
+            args: [
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-gpu',
+                '--disable-dev-shm-usage'
+            ],
+            protocolTimeout: 60000 // Increase protocol timeout to 60 seconds
+        });
+        page = await browser.newPage();
+        await page.setDefaultNavigationTimeout(60000); // Increase navigation timeout to 60 seconds
+        await page.goto('https://global-mind.org/gcpdot/gcp.html', { waitUntil: 'networkidle0' });
+    } catch (error) {
+        console.error('Error launching browser:', error.message);
+        console.log('Retrying browser launch...');
+        await new Promise(r => setTimeout(r, 5000)); // Wait 5 seconds before retrying
+        await launchBrowser(); // Retry launching the browser
+    }
 }
 
 // Function to get the center color of the screenshot
@@ -76,6 +83,8 @@ async function getCenterColor(page, retries = 3) {
                     await page.reload({ waitUntil: 'load' });
                     await new Promise(r => setTimeout(r, 2000));
                 }
+
+                if (page.isClosed()) throw new Error('Page is closed or detached.');
 
                 await new Promise(r => setTimeout(r, 2000)); // Stability delay
                 screenshot = await page.screenshot({
@@ -284,6 +293,19 @@ client.on('interactionCreate', async (interaction) => {
         const color = colorDetector.getLastColor(); // Use ColorDetector for the last color
         await interaction.editReply(`**The dot is** ${color} **right now**`);
     }
+});
+
+// Graceful shutdown
+process.on('SIGINT', async () => {
+    console.log('Shutting down gracefully...');
+    if (browser) await browser.close();
+    process.exit(0);
+});
+
+process.on('SIGTERM', async () => {
+    console.log('Shutting down gracefully...');
+    if (browser) await browser.close();
+    process.exit(0);
 });
 
 client.login(BOT_TOKEN);

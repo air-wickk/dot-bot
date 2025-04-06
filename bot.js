@@ -1,7 +1,8 @@
 // node bot.js to run
 const puppeteer = require('puppeteer');
-const { Client, GatewayIntentBits, SlashCommandBuilder, ActivityType, REST, Routes } = require('discord.js');
+const { Client, GatewayIntentBits, SlashCommandBuilder, ActivityType } = require('discord.js');
 const express = require('express');
+const ColorDetector = require('./ColorDetector'); // Import the ColorDetector class
 require('dotenv').config();
 
 // Load environment variables
@@ -33,120 +34,35 @@ app.listen(port, () => {
     console.log(`Web service listening on port ${port}`);
 });
 
-// 📊 Color Tracking Data with Limit
-const colorLog = [];
-const MAX_COLOR_LOG_SIZE = 20; // Limit the log to the last 20 entries
-
-// Update log with size restriction
-function addToColorLog(color) {
-    const currentTimestamp = Date.now();
-    //console.log(`Adding color: ${color} with timestamp: ${currentTimestamp}`);
-    colorLog.push({ color, timestamp: currentTimestamp });
-    if (colorLog.length > MAX_COLOR_LOG_SIZE) {
-        colorLog.shift(); // Remove the oldest entry if the log exceeds the max size
-    }
-}
-
-/* let lastBlueTimestamp = null; // Tracks the last time blue was detected
-
- function wasBlueRecently() {
-    //console.log(Color Log Length: ${colorLog.length});
-    //console.log(Recent Colors: ${colorLog.slice(-15).map(entry => entry.color).join(', ')});
-
-    if (colorLog.length === 1 && ['<:bluecyan:1324224790164144128>', '<:darkblue:1324224216651923519>'].includes(colorLog[0].color)) {
-        //console.log('First blue or bluecyan detected after bot start.');
-        return false; // Allow the message for the first entry
-    }
-
-    // Check the last 15 entries for blue or bluecyan
-    return colorLog.slice(-16, -1).some(entry => BLUE_COLORS.includes(entry.color));
-} */
-
-// 📊 Function to classify color into categories using Euclidean distance
-function classifyColor(r, g, b) {
-    const hsl = rgbToHsl(r, g, b);
-    const hue = hsl[0];
-    const saturation = hsl[1] * 100; // Convert to percentage for easier reading
-    const lightness = hsl[2] * 100; // Convert to percentage for easier reading
-
-    // Mapping the hue to the closest custom emojis based on hue values
-    const colors = [
-        { emoji: '<:red:1324226477268406353>', min: 0, max: 10 }, // Red
-        { emoji: '<:orangered:1324226458465337365>', min: 10, max: 30 }, // Orange-Red
-        { emoji: '<:orange:1324226439796621322>', min: 30, max: 50 }, // Orange
-        { emoji: '<:yelloworange:1324226423568728074>', min: 50, max: 70 }, // Yellow-Orange
-        { emoji: '<:yellow:1324226408783810603>', min: 70, max: 90 }, // Yellow
-        { emoji: '<:greenyellow:1324226389859373086>', min: 90, max: 120 }, // Green-Yellow
-        { emoji: '<:green:1324226357663633508>', min: 120, max: 150 }, // Green
-        { emoji: '<:cyangreen:1324226321253142539>', min: 150, max: 170 }, // Cyan-Green
-        { emoji: '<:cyan:1324226273794461706>', min: 170, max: 195 }, // Cyan
-        { emoji: '<:bluecyan:1324224790164144128>', min: 195, max: 220 }, // Blue-Cyan
-        { emoji: '<:darkblue:1324224216651923519>', min: 220, max: 255 }, // Dark Blue
-    ];
-
-    let closestColor = '<:pink:1326324208279490581>'; // Default to pink if no match
-
-    // Classify based on hue
-    for (let color of colors) {
-        if (hue >= color.min && hue < color.max) {
-            closestColor = color.emoji;
-            break;
-        }
-    }
-
-    // Special case for pink classification
-    if (
-        closestColor === '<:red:1324226477268406353>' && // Initially classified as red
-        saturation < 30 && // Low saturation
-        lightness > 70 // High lightness
-    ) {
-        closestColor = '<:pink:1326324208279490581>';
-    }
-
-    return closestColor;
-}
-
-// 📊 Function to convert RGB to HSL
-function rgbToHsl(r, g, b) {
-    r /= 255;
-    g /= 255;
-    b /= 255;
-    let max = Math.max(r, g, b),
-        min = Math.min(r, g, b);
-    let h, s, l = (max + min) / 2;
-
-    if (max === min) {
-        h = s = 0;
-    } else {
-        let d = max - min;
-        s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-        if (max === r) h = (g - b) / d + (g < b ? 6 : 0);
-        else if (max === g) h = (b - r) / d + 2;
-        else if (max === b) h = (r - g) / d + 4;
-        h /= 6;
-    }
-    return [h * 360, s, l];
-}
+// Instantiate the ColorDetector
+const colorDetector = new ColorDetector();
 
 let browser = null; // Declare browser globally
 let page = null; // Declare page globally
 
 // Define launchBrowser outside of monitorColor
 async function launchBrowser() {
-    if (browser) await browser.close(); // Close existing browser if any
-    browser = await puppeteer.launch({
-        headless: true,
-        args: [
-            '--no-sandbox',
-            '--disable-setuid-sandbox',
-            '--disable-gpu',
-            '--disable-dev-shm-usage'
-        ],
-        protocolTimeout: 30000
-    });
-    page = await browser.newPage();
-    await page.setDefaultNavigationTimeout(30000); // Timeout for navigation
-    await page.goto('https://global-mind.org/gcpdot/gcp.html', { waitUntil: 'networkidle0' });
+    try {
+        if (browser) await browser.close(); // Close existing browser if any
+        browser = await puppeteer.launch({
+            headless: true,
+            args: [
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-gpu',
+                '--disable-dev-shm-usage'
+            ],
+            protocolTimeout: 60000 // Increase protocol timeout to 60 seconds
+        });
+        page = await browser.newPage();
+        await page.setDefaultNavigationTimeout(60000); // Increase navigation timeout to 60 seconds
+        await page.goto('https://global-mind.org/gcpdot/gcp.html', { waitUntil: 'networkidle0' });
+    } catch (error) {
+        console.error('Error launching browser:', error.message);
+        console.log('Retrying browser launch...');
+        await new Promise(r => setTimeout(r, 5000)); // Wait 5 seconds before retrying
+        await launchBrowser(); // Retry launching the browser
+    }
 }
 
 // Function to get the center color of the screenshot
@@ -167,6 +83,8 @@ async function getCenterColor(page, retries = 3) {
                     await page.reload({ waitUntil: 'load' });
                     await new Promise(r => setTimeout(r, 2000));
                 }
+
+                if (page.isClosed()) throw new Error('Page is closed or detached.');
 
                 await new Promise(r => setTimeout(r, 2000)); // Stability delay
                 screenshot = await page.screenshot({
@@ -214,7 +132,7 @@ async function getCenterColor(page, retries = 3) {
             });
         }, screenshot);
 
-        return classifyColor(color[0], color[1], color[2]);
+        return colorDetector.classifyColor(color[0], color[1], color[2]); // Use ColorDetector for classification
 
     } catch (error) {
         console.error('Error in getCenterColor:', error.message);
@@ -225,6 +143,8 @@ async function getCenterColor(page, retries = 3) {
 let lastColor = null; // Tracks the last detected color
 let lastBlueNotificationTime = 0; // Tracks the last time a blue notification was sent
 const COOLDOWN_PERIOD = 30 * 60 * 1000; // 30 minutes in milliseconds
+let lastNotificationMessage = null; // Track the last notification message
+let isEditingMessage = false; // Track if the bot is currently editing a message
 
 async function monitorColor() {
     try {
@@ -240,7 +160,7 @@ async function monitorColor() {
                 const color = await getCenterColor(page);
 
                 if (color) {
-                    addToColorLog(color);
+                    colorDetector.addToColorLog(color); // Use ColorDetector for logging
 
                     const colorMap = {
                         '<:red:1324226477268406353>': '🔴',
@@ -251,37 +171,57 @@ async function monitorColor() {
                         '<:greenyellow:1324226389859373086>': '🟢',
                         '<:green:1324226357663633508>': '🟢',
                         '<:cyangreen:1324226321253142539>': '🟢',
-                        '<:cyan:1324226273794461706>': '🟢',
-                        '<:bluecyan:1324224790164144128>': '🔵',
-                        '<:darkblue:1324224216651923519>': '🔵',
-                        '<:pink:1326324208279490581>': '⚪'
+                        '<:cyan:1324226273794461706>': '🔵', // cyan
+                        '<:bluecyan:1324224790164144128>': '🔵', // blue 
+                        '<:darkblue:1324224216651923519>': '🔵', // dark blue
                     };
 
-                    const statusEmoji = colorMap[color] || '⚪';
+                    const statusEmoji = colorMap[color] || '🟢';
 
                     client.user.setPresence({
                         activities: [{ name: `the dot: ${statusEmoji}`, type: ActivityType.Watching }],
                         status: 'online',
                     });
 
-                    if (
-                        ['<:darkblue:1324224216651923519>','<:bluecyan:1324224790164144128>' ].includes(color) && // Color is blue
-                        (!['<:darkblue:1324224216651923519>','<:bluecyan:1324224790164144128>'].includes(lastColor)) // Transitioned from non-blue
-                    ) {
-                        const now = Date.now();
+                    // Check if the color is a shade of blue
+                    if (['<:cyan:1324226273794461706>', '<:bluecyan:1324224790164144128>', '<:darkblue:1324224216651923519>'].includes(color)) {
+                        const channel = await client.channels.fetch(CHANNEL_ID);
 
-                        // Check cooldown before sending a message
-                        if (now - lastBlueNotificationTime > COOLDOWN_PERIOD) {
-                            const channel = await client.channels.fetch(CHANNEL_ID);
-                            await channel.send({
+                        // If there's no active message, send a new one
+                        if (!lastNotificationMessage || !isEditingMessage) {
+                            if (lastNotificationMessage) {
+                                try {
+                                    await lastNotificationMessage.delete();
+                                } catch (error) {
+                                    console.warn('Failed to delete the last notification message:', error.message);
+                                }
+                            }
+
+                            lastNotificationMessage = await channel.send({
                                 content: `${colorMap[color]} **The dot is blue!**`,
                                 allowedMentions: { roles: [BLUE_ROLE_ID] }
                             });
 
                             console.log(`Notification sent for color: ${color}`);
-                            lastBlueNotificationTime = now; // Update the last notification time
                         } else {
-                            console.log("The dot turned blue, but cooldown is active.");
+                            // Edit the existing message to reflect the current shade of blue
+                            isEditingMessage = true;
+                            await lastNotificationMessage.edit({
+                                content: `${colorMap[color]} **The dot is blue!**`
+                            });
+                            console.log(`Edited message to reflect color: ${color}`);
+                        }
+                    } else {
+                        // If the dot is no longer blue, stop editing and delete the message
+                        if (lastNotificationMessage) {
+                            try {
+                                await lastNotificationMessage.delete();
+                                lastNotificationMessage = null;
+                                isEditingMessage = false;
+                                console.log('Deleted the last notification message as the dot is no longer blue.');
+                            } catch (error) {
+                                console.warn('Failed to delete the last notification message:', error.message);
+                            }
                         }
                     }
 
@@ -303,34 +243,18 @@ async function monitorColor() {
     }
 }
 
-
 // 🗨️ Commands
 client.on('ready', async () => {
     console.log(`✅ Logged in as ${client.user.tag}!`);
-    
-    /* Delete global commands
-
-    const clientId = "1323744486811111473"; // bot's client ID here
-    const commandId = "1324218706997542913"; // command ID to delete
-
-    const rest = new REST({ version: '10' }).setToken(BOT_TOKEN);
-    try {
-        await rest.delete(Routes.applicationCommand(clientId, commandId));
-        console.log('Successfully deleted the global command');
-    } catch (error) {
-        console.error('Error deleting command:', error);
-    }
-    */
 
     // Register new command
     await client.application.commands.create(
         new SlashCommandBuilder().setName('dotcolor').setDescription('Get the current color of the dot!')
     );
-    
+
     monitorColor();
 });
 
-// Command handler for !log
 client.on('messageCreate', async (message) => {
     if (message.content.startsWith('!dotlog')) {
         const args = message.content.split(' '); // Split the command into arguments
@@ -341,7 +265,7 @@ client.on('messageCreate', async (message) => {
         }
 
         // Get the most recent `numEntries` from the color log
-        const recentColors = colorLog.slice(-numEntries);  // Get the last `numEntries` colors
+        const recentColors = colorDetector.getColorLog().slice(-numEntries); // Use ColorDetector for log retrieval
         if (recentColors.length === 0) {
             return message.channel.send("📭 **The color log is empty.**");
         }
@@ -349,7 +273,7 @@ client.on('messageCreate', async (message) => {
         // Format the color log entries with colors and relative timestamps
         const colorLogMessages = recentColors.map(entry => {
             const relativeTime = `<t:${Math.floor(entry.timestamp / 1000)}:R>`;
-            return `Color: ${entry.color} (${relativeTime})`;  // Color and relative time in compact format
+            return `Color: ${entry.color} (${relativeTime})`; // Color and relative time in compact format
         });
 
         // Join the formatted entries into a single string, separating by ' | '
@@ -364,9 +288,9 @@ client.on('messageCreate', async (message) => {
             colorLogMessages.forEach((msg, index) => {
                 // Add the message to the current chunk
                 if ((currentChunk + msg).length < MAX_MESSAGE_LENGTH) {
-                    currentChunk += msg + " | ";  // Use pipe to separate entries
+                    currentChunk += msg + " | "; // Use pipe to separate entries
                 } else {
-                    chunks.push(currentChunk.trim());  // Remove trailing pipe and add to chunks
+                    chunks.push(currentChunk.trim()); // Remove trailing pipe and add to chunks
                     currentChunk = msg + " | ";
                 }
             });
@@ -388,9 +312,22 @@ client.on('interactionCreate', async (interaction) => {
 
     if (interaction.commandName === 'dotcolor') {
         await interaction.reply('🔍 Checking the dot, please wait...');
-        const color = colorLog[colorLog.length - 1]?.color || 'Unknown';
+        const color = colorDetector.getLastColor(); // Use ColorDetector for the last color
         await interaction.editReply(`**The dot is** ${color} **right now**`);
     }
+});
+
+// Graceful shutdown
+process.on('SIGINT', async () => {
+    console.log('Shutting down gracefully...');
+    if (browser) await browser.close();
+    process.exit(0);
+});
+
+process.on('SIGTERM', async () => {
+    console.log('Shutting down gracefully...');
+    if (browser) await browser.close();
+    process.exit(0);
 });
 
 client.login(BOT_TOKEN);

@@ -37,21 +37,13 @@ class ColorDetector {
             { emoji: '<:darkblue:1324224216651923519>', min: 220, max: 255 },
         ];
 
-        let closestColor = '<:pink:1326324208279490581>'; // Default to pink if no match
+        let closestColor = '<:red:1324226477268406353>'; // Default to red if no match
 
         for (let color of colors) {
             if (hue >= color.min && hue < color.max) {
                 closestColor = color.emoji;
                 break;
             }
-        }
-
-        if (
-            closestColor === '<:red:1324226477268406353>' &&
-            saturation < 30 &&
-            lightness > 70
-        ) {
-            closestColor = '<:pink:1326324208279490581>';
         }
 
         return closestColor;
@@ -168,7 +160,3 @@ async function getCenterColor(page, retries = 3) {
         return null;
     }
 }
-
-// Update other parts of the code to use `colorDetector` for logging and classification
-// Example: Replace `addToColorLog` with `colorDetector.addToColorLog(color)`
-// Example: Replace `colorLog` with `colorDetector.getColorLog()`

@@ -143,6 +143,8 @@ async function getCenterColor(page, retries = 3) {
 let lastColor = null; // Tracks the last detected color
 let lastBlueNotificationTime = 0; // Tracks the last time a blue notification was sent
 const COOLDOWN_PERIOD = 30 * 60 * 1000; // 30 minutes in milliseconds
+let lastNotificationMessage = null; // Track the last notification message
+let isEditingMessage = false; // Track if the bot is currently editing a message
 
 async function monitorColor() {
     try {
@@ -169,37 +171,57 @@ async function monitorColor() {
                         '<:greenyellow:1324226389859373086>': '🟢',
                         '<:green:1324226357663633508>': '🟢',
                         '<:cyangreen:1324226321253142539>': '🟢',
-                        '<:cyan:1324226273794461706>': '🟢',
-                        '<:bluecyan:1324224790164144128>': '🔵',
-                        '<:darkblue:1324224216651923519>': '🔵',
-                        '<:pink:1326324208279490581>': '⚪'
+                        '<:cyan:1324226273794461706>': '🔵', // cyan
+                        '<:bluecyan:1324224790164144128>': '🔵', // blue 
+                        '<:darkblue:1324224216651923519>': '🔵', // dark blue
                     };
 
-                    const statusEmoji = colorMap[color] || '⚪';
+                    const statusEmoji = colorMap[color] || '🟢';
 
                     client.user.setPresence({
                         activities: [{ name: `the dot: ${statusEmoji}`, type: ActivityType.Watching }],
                         status: 'online',
                     });
 
-                    if (
-                        ['<:darkblue:1324224216651923519>', '<:bluecyan:1324224790164144128>'].includes(color) && // Color is blue
-                        (!['<:darkblue:1324224216651923519>', '<:bluecyan:1324224790164144128>'].includes(lastColor)) // Transitioned from non-blue
-                    ) {
-                        const now = Date.now();
+                    // Check if the color is a shade of blue
+                    if (['<:cyan:1324226273794461706>', '<:bluecyan:1324224790164144128>', '<:darkblue:1324224216651923519>'].includes(color)) {
+                        const channel = await client.channels.fetch(CHANNEL_ID);
 
-                        // Check cooldown before sending a message
-                        if (now - lastBlueNotificationTime > COOLDOWN_PERIOD) {
-                            const channel = await client.channels.fetch(CHANNEL_ID);
-                            await channel.send({
+                        // If there's no active message, send a new one
+                        if (!lastNotificationMessage || !isEditingMessage) {
+                            if (lastNotificationMessage) {
+                                try {
+                                    await lastNotificationMessage.delete();
+                                } catch (error) {
+                                    console.warn('Failed to delete the last notification message:', error.message);
+                                }
+                            }
+
+                            lastNotificationMessage = await channel.send({
                                 content: `${colorMap[color]} **The dot is blue!**`,
                                 allowedMentions: { roles: [BLUE_ROLE_ID] }
                             });
 
                             console.log(`Notification sent for color: ${color}`);
-                            lastBlueNotificationTime = now; // Update the last notification time
                         } else {
-                            console.log("The dot turned blue, but cooldown is active.");
+                            // Edit the existing message to reflect the current shade of blue
+                            isEditingMessage = true;
+                            await lastNotificationMessage.edit({
+                                content: `${colorMap[color]} **The dot is blue!**`
+                            });
+                            console.log(`Edited message to reflect color: ${color}`);
+                        }
+                    } else {
+                        // If the dot is no longer blue, stop editing and delete the message
+                        if (lastNotificationMessage) {
+                            try {
+                                await lastNotificationMessage.delete();
+                                lastNotificationMessage = null;
+                                isEditingMessage = false;
+                                console.log('Deleted the last notification message as the dot is no longer blue.');
+                            } catch (error) {
+                                console.warn('Failed to delete the last notification message:', error.message);
+                            }
                         }
                     }
 

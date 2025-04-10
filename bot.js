@@ -103,7 +103,11 @@ async function getCenterColor(page, retries = 3) {
                 if (screenshot) break;
             } catch (error) {
                 console.warn(`Retry ${i + 1}: Failed to take screenshot`, error.message);
-                if (i === retries - 1) throw error;
+                if (i === retries - 1) {
+                    console.error('Persistent failure detected. Restarting browser...');
+                    await launchBrowser(); // Restart the browser
+                    throw error; // Re-throw the error to handle it in the calling function
+                }
                 await new Promise(res => setTimeout(res, 2000));
             }
         }

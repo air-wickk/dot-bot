@@ -275,6 +275,17 @@ async function monitorColor() {
     }
 }
 
+let lastUpdateTime = Date.now();
+
+setInterval(async () => {
+    const now = Date.now();
+    if (now - lastUpdateTime > 5 * 60 * 1000) { // 5 minutes
+        console.warn('No updates for 5 minutes. Restarting browser...');
+        await launchBrowser();
+        lastUpdateTime = Date.now(); // Reset the timer
+    }
+}, 60000); // Check every minute
+
 // 🗨️ Commands
 client.on('ready', async () => {
     console.log(`✅ Logged in as ${client.user.tag}!`);

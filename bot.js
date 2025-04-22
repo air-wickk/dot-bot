@@ -64,6 +64,7 @@ async function launchBrowser() {
 
         await page.setDefaultNavigationTimeout(60000); // Increase navigation timeout to 60 seconds
         await page.goto('https://global-mind.org/gcpdot/gcp.html', { waitUntil: 'domcontentloaded' });
+        await page.waitForFunction(() => document.readyState === 'complete', { timeout: 30000 });
     } catch (error) {
         console.error('Error launching browser:', error.message);
         console.log('Retrying browser launch...');
@@ -88,7 +89,7 @@ async function getCenterColor(page, retries = 3) {
                 if (!isPageOk) {
                     console.warn('Page not fully loaded. Reloading...');
                     await page.reload({ waitUntil: 'load' });
-                    await new Promise(r => setTimeout(r, 2000));
+                    await page.waitForFunction(() => document.readyState === 'complete', { timeout: 30000 });
                 }
 
                 if (page.isClosed()) throw new Error('Page is closed or detached.');
@@ -171,6 +172,7 @@ async function monitorColor() {
                 const color = await getCenterColor(page);
 
                 if (color) {
+                    lastUpdateTime = Date.now();
                     colorDetector.addToColorLog(color); // Use ColorDetector for logging
 
                     // Map for activity status (uses default emojis)
@@ -240,12 +242,14 @@ async function monitorColor() {
                                 allowedMentions: { roles: [BLUE_ROLE_ID] }
                             });
                             lastBlueNotificationTime = Date.now(); // Update the last notification time
+                            lastUpdateTime = Date.now(); // Update the watchdog timer
                             console.log(`Notification sent for color: ${color}`);
                         } else {
                             // Edit the existing message to reflect the current shade of blue
                             await lastNotificationMessage.edit({
                                 content: `${customEmoji} **The dot is ${statusWord}!**`
                             });
+                            lastUpdateTime = Date.now(); // Update the watchdog timer
                             console.log(`Edited message to reflect color: ${color}`);
                         }
                     } else {

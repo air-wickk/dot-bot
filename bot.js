@@ -55,8 +55,15 @@ async function launchBrowser() {
             protocolTimeout: 60000 // Increase protocol timeout to 60 seconds
         });
         page = await browser.newPage();
+
+        // Set a smaller viewport size
+        await page.setViewport({
+            width: 400, // Smaller width
+            height: 300, // Smaller height
+        });
+
         await page.setDefaultNavigationTimeout(60000); // Increase navigation timeout to 60 seconds
-        await page.goto('https://global-mind.org/gcpdot/gcp.html', { waitUntil: 'networkidle0' });
+        await page.goto('https://global-mind.org/gcpdot/gcp.html', { waitUntil: 'domcontentloaded' });
     } catch (error) {
         console.error('Error launching browser:', error.message);
         console.log('Retrying browser launch...');
@@ -96,7 +103,11 @@ async function getCenterColor(page, retries = 3) {
                 if (screenshot) break;
             } catch (error) {
                 console.warn(`Retry ${i + 1}: Failed to take screenshot`, error.message);
-                if (i === retries - 1) throw error;
+                if (i === retries - 1) {
+                    console.error('Persistent failure detected. Restarting browser...');
+                    await launchBrowser(); // Restart the browser
+                    throw error; // Re-throw the error to handle it in the calling function
+                }
                 await new Promise(res => setTimeout(res, 2000));
             }
         }
@@ -162,7 +173,8 @@ async function monitorColor() {
                 if (color) {
                     colorDetector.addToColorLog(color); // Use ColorDetector for logging
 
-                    const colorMap = {
+                    // Map for activity status (uses default emojis)
+                    const activityStatusMap = {
                         '<:red:1324226477268406353>': '🔴',
                         '<:orangered:1324226458465337365>': '🟠',
                         '<:orange:1324226439796621322>': '🟠',
@@ -171,53 +183,78 @@ async function monitorColor() {
                         '<:greenyellow:1324226389859373086>': '🟢',
                         '<:green:1324226357663633508>': '🟢',
                         '<:cyangreen:1324226321253142539>': '🟢',
-                        '<:cyan:1324226273794461706>': '🔵', // cyan
-                        '<:bluecyan:1324224790164144128>': '🔵', // blue 
-                        '<:darkblue:1324224216651923519>': '🔵', // dark blue
+                        '<:cyan:1324226273794461706>': '🔵',
+                        '<:bluecyan:1324224790164144128>': '🔵',
+                        '<:darkblue:1324224216651923519>': '🔵',
                     };
 
-                    const statusEmoji = colorMap[color] || '🟢';
+                    // Map for message content (uses words)
+                    const messageContentMap = {
+                        '<:red:1324226477268406353>': 'red',
+                        '<:orangered:1324226458465337365>': 'orange-red',
+                        '<:orange:1324226439796621322>': 'orange',
+                        '<:yelloworange:1324226423568728074>': 'yellow-orange',
+                        '<:yellow:1324226408783810603>': 'yellow',
+                        '<:greenyellow:1324226389859373086>': 'green-yellow',
+                        '<:green:1324226357663633508>': 'green',
+                        '<:cyangreen:1324226321253142539>': 'cyan-green',
+                        '<:cyan:1324226273794461706>': 'light blue',
+                        '<:bluecyan:1324224790164144128>': 'blue',
+                        '<:darkblue:1324224216651923519>': 'dark blue',
+                    };
 
+                    // Map for custom emojis (used in the message)
+                    const customEmojiMap = {
+                        '<:red:1324226477268406353>': '<:red:1324226477268406353>',
+                        '<:orangered:1324226458465337365>': '<:orangered:1324226458465337365>',
+                        '<:orange:1324226439796621322>': '<:orange:1324226439796621322>',
+                        '<:yelloworange:1324226423568728074>': '<:yelloworange:1324226423568728074>',
+                        '<:yellow:1324226408783810603>': '<:yellow:1324226408783810603>',
+                        '<:greenyellow:1324226389859373086>': '<:greenyellow:1324226389859373086>',
+                        '<:green:1324226357663633508>': '<:green:1324226357663633508>',
+                        '<:cyangreen:1324226321253142539>': '<:cyangreen:1324226321253142539>',
+                        '<:cyan:1324226273794461706>': '<:cyan:1324226273794461706>',
+                        '<:bluecyan:1324224790164144128>': '<:bluecyan:1324224790164144128>',
+                        '<:darkblue:1324224216651923519>': '<:darkblue:1324224216651923519>',
+                    };
+
+                    const statusEmoji = activityStatusMap[color] || '⚪';
+                    const customEmoji = customEmojiMap[color] || '⚪';
+                    const statusWord = messageContentMap[color] || 'unknown';
+
+                    // Update the bot's activity status (uses default emojis)
                     client.user.setPresence({
                         activities: [{ name: `the dot: ${statusEmoji}`, type: ActivityType.Watching }],
                         status: 'online',
                     });
 
-                    // Check if the color is a shade of blue
-                    if (['<:cyan:1324226273794461706>', '<:bluecyan:1324224790164144128>', '<:darkblue:1324224216651923519>'].includes(color)) {
+                    const isBlue = ['<:cyan:1324226273794461706>', '<:bluecyan:1324224790164144128>', '<:darkblue:1324224216651923519>'].includes(color);
+
+                    if (isBlue) {
                         const channel = await client.channels.fetch(CHANNEL_ID);
 
                         // If there's no active message, send a new one
-                        if (!lastNotificationMessage || !isEditingMessage) {
-                            if (lastNotificationMessage) {
-                                try {
-                                    await lastNotificationMessage.delete();
-                                } catch (error) {
-                                    console.warn('Failed to delete the last notification message:', error.message);
-                                }
-                            }
-
+                        if (!lastNotificationMessage) {
                             lastNotificationMessage = await channel.send({
-                                content: `${colorMap[color]} **The dot is blue!**`,
+                                content: `${customEmoji} **The dot is ${statusWord}!**`,
                                 allowedMentions: { roles: [BLUE_ROLE_ID] }
                             });
-
+                            lastBlueNotificationTime = Date.now(); // Update the last notification time
                             console.log(`Notification sent for color: ${color}`);
                         } else {
                             // Edit the existing message to reflect the current shade of blue
-                            isEditingMessage = true;
                             await lastNotificationMessage.edit({
-                                content: `${colorMap[color]} **The dot is blue!**`
+                                content: `${customEmoji} **The dot is ${statusWord}!**`
                             });
                             console.log(`Edited message to reflect color: ${color}`);
                         }
                     } else {
-                        // If the dot is no longer blue, stop editing and delete the message
-                        if (lastNotificationMessage) {
+                        // If the dot is no longer blue
+                        const now = Date.now();
+                        if (lastNotificationMessage && now - lastBlueNotificationTime >= 60 * 60 * 1000) {
                             try {
                                 await lastNotificationMessage.delete();
                                 lastNotificationMessage = null;
-                                isEditingMessage = false;
                                 console.log('Deleted the last notification message as the dot is no longer blue.');
                             } catch (error) {
                                 console.warn('Failed to delete the last notification message:', error.message);
@@ -233,15 +270,21 @@ async function monitorColor() {
             }
         }, 15000);
 
-        setInterval(async () => {
-            console.log("Restarting browser...");
-            await launchBrowser();
-        }, 1800000); // Every 30 minutes
-
     } catch (error) {
         console.error("Error during color monitoring:", error);
     }
 }
+
+let lastUpdateTime = Date.now();
+
+setInterval(async () => {
+    const now = Date.now();
+    if (now - lastUpdateTime > 5 * 60 * 1000) { // 5 minutes
+        console.warn('No updates for 5 minutes. Restarting browser...');
+        await launchBrowser();
+        lastUpdateTime = Date.now(); // Reset the timer
+    }
+}, 60000); // Check every minute
 
 // 🗨️ Commands
 client.on('ready', async () => {

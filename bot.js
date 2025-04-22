@@ -64,6 +64,7 @@ async function launchBrowser() {
 
         await page.setDefaultNavigationTimeout(60000); // Increase navigation timeout to 60 seconds
         await page.goto('https://global-mind.org/gcpdot/gcp.html', { waitUntil: 'domcontentloaded' });
+        await page.waitForFunction(() => document.readyState === 'complete', { timeout: 30000 });
     } catch (error) {
         console.error('Error launching browser:', error.message);
         console.log('Retrying browser launch...');
@@ -88,7 +89,7 @@ async function getCenterColor(page, retries = 3) {
                 if (!isPageOk) {
                     console.warn('Page not fully loaded. Reloading...');
                     await page.reload({ waitUntil: 'load' });
-                    await new Promise(r => setTimeout(r, 2000));
+                    await page.waitForFunction(() => document.readyState === 'complete', { timeout: 30000 });
                 }
 
                 if (page.isClosed()) throw new Error('Page is closed or detached.');
@@ -156,6 +157,7 @@ let lastBlueNotificationTime = 0; // Tracks the last time a blue notification wa
 const COOLDOWN_PERIOD = 30 * 60 * 1000; // 30 minutes in milliseconds
 let lastNotificationMessage = null; // Track the last notification message
 let isEditingMessage = false; // Track if the bot is currently editing a message
+let consecutiveBlueChecks = 0; // Tracks how many consecutive checks the dot has been blue
 
 async function monitorColor() {
     try {
@@ -171,7 +173,8 @@ async function monitorColor() {
                 const color = await getCenterColor(page);
 
                 if (color) {
-                    colorDetector.addToColorLog(color); // Use ColorDetector for logging
+                    lastUpdateTime = Date.now();
+                    colorDetector.addToColorLog(color);
 
                     // Map for activity status (uses default emojis)
                     const activityStatusMap = {
@@ -231,25 +234,31 @@ async function monitorColor() {
                     const isBlue = ['<:cyan:1324226273794461706>', '<:bluecyan:1324224790164144128>', '<:darkblue:1324224216651923519>'].includes(color);
 
                     if (isBlue) {
-                        const channel = await client.channels.fetch(CHANNEL_ID);
+                        consecutiveBlueChecks++; // Increment the counter for consecutive blue checks
 
-                        // If there's no active message, send a new one
-                        if (!lastNotificationMessage) {
-                            lastNotificationMessage = await channel.send({
-                                content: `${customEmoji} **The dot is ${statusWord}!**`,
-                                allowedMentions: { roles: [BLUE_ROLE_ID] }
-                            });
-                            lastBlueNotificationTime = Date.now(); // Update the last notification time
-                            console.log(`Notification sent for color: ${color}`);
-                        } else {
-                            // Edit the existing message to reflect the current shade of blue
-                            await lastNotificationMessage.edit({
-                                content: `${customEmoji} **The dot is ${statusWord}!**`
-                            });
-                            console.log(`Edited message to reflect color: ${color}`);
+                        if (consecutiveBlueChecks >= 4) { // If the dot has been blue for 4 checks
+                            const channel = await client.channels.fetch(CHANNEL_ID);
+
+                            // If there's no active message, send a new one
+                            if (!lastNotificationMessage) {
+                                lastNotificationMessage = await channel.send({
+                                    content: `${customEmoji} **The dot is ${statusWord}!**`,
+                                    allowedMentions: { roles: [BLUE_ROLE_ID] }
+                                });
+                                lastBlueNotificationTime = Date.now(); // Update the last notification time
+                                console.log(`Notification sent for color: ${color}`);
+                            } else {
+                                // Edit the existing message to reflect the current shade of blue
+                                await lastNotificationMessage.edit({
+                                    content: `${customEmoji} **The dot is ${statusWord}!**`
+                                });
+                                console.log(`Edited message to reflect color: ${color}`);
+                            }
                         }
                     } else {
-                        // If the dot is no longer blue
+                        consecutiveBlueChecks = 0; // Reset the counter if the dot is not blue
+
+                        // If the dot is no longer blue, delete the notification message after 1 hour
                         const now = Date.now();
                         if (lastNotificationMessage && now - lastBlueNotificationTime >= 60 * 60 * 1000) {
                             try {
@@ -268,7 +277,7 @@ async function monitorColor() {
             } catch (error) {
                 console.error('Error in color detection loop:', error);
             }
-        }, 15000);
+        }, 15000); // Check every 15 seconds
 
     } catch (error) {
         console.error("Error during color monitoring:", error);

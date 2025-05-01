@@ -93,9 +93,9 @@ async function getCenterColor(page, retries = 3) {
 
                 if (page.isClosed()) throw new Error('Page is closed or detached.');
 
-                await new Promise(r => setTimeout(r, 2000)); // Stability delay
+                await new Promise(r => setTimeout(r, 2000));
                 screenshot = await page.screenshot({
-                    fullPage: true,
+                    clip: { x: 0, y: 0, width: 300, height: 300 },
                     encoding: 'base64',
                     timeout: 60000,
                 });

@@ -243,7 +243,8 @@ async function monitorColor() {
                             if (!lastNotificationMessage) {
                                 lastNotificationMessage = await channel.send({
                                     content: `${customEmoji} **The dot is ${statusWord}!**`,
-                                    allowedMentions: { roles: [BLUE_ROLE_ID] }
+                                    allowedMentions: { roles: [BLUE_ROLE_ID] },
+                                    flags: 1 << 12 // Suppress notification for the message
                                 });
                                 lastBlueNotificationTime = Date.now(); // Update the last notification time
                                 console.log(`Notification sent for color: ${color}`);

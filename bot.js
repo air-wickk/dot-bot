@@ -1,6 +1,6 @@
 // node bot.js to run
 const puppeteer = require('puppeteer');
-const { Client, GatewayIntentBits, SlashCommandBuilder, ActivityType } = require('discord.js');
+const { Client, GatewayIntentBits, SlashCommandBuilder, ActivityType, Options } = require('discord.js');
 const express = require('express');
 const ColorDetector = require('./ColorDetector'); // Import the ColorDetector class
 require('dotenv').config();
@@ -17,7 +17,10 @@ const client = new Client({
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent
-    ]
+    ],
+    makeCache: Options.cacheWithLimits({
+        MessageManager: 0, // No message cache
+    }),
 });
 
 // Express server for Render compatibility
@@ -295,6 +298,19 @@ setInterval(async () => {
         lastUpdateTime = Date.now(); // Reset the timer
     }
 }, 60000); // Check every minute
+
+// Restart Puppeteer every 2 hours to free memory
+setInterval(async () => {
+    console.log('Restarting Puppeteer to free up memory...');
+    if (browser) await browser.close();
+    await launchBrowser();
+}, 2 * 60 * 60 * 1000); // 2 hours
+
+// Log memory usage every 10 minutes
+setInterval(() => {
+    const mem = process.memoryUsage();
+    console.log(`Memory: RSS ${(mem.rss/1024/1024).toFixed(1)}MB, Heap ${(mem.heapUsed/1024/1024).toFixed(1)}MB`);
+}, 10 * 60 * 1000);
 
 // 🗨️ Commands
 client.on('ready', async () => {

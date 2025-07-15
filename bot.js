@@ -2,7 +2,7 @@
 const puppeteer = require('puppeteer');
 const { Client, GatewayIntentBits, SlashCommandBuilder, ActivityType, Options } = require('discord.js');
 const express = require('express');
-const ColorDetector = require('./ColorDetector'); // Import the ColorDetector class
+const ColorDetector = require('./ColorDetector');
 require('dotenv').config();
 
 // Load environment variables
@@ -55,24 +55,23 @@ async function launchBrowser() {
                 '--disable-gpu',
                 '--disable-dev-shm-usage'
             ],
-            protocolTimeout: 60000 // Increase protocol timeout to 60 seconds
+            protocolTimeout: 60000
         });
         page = await browser.newPage();
 
-        // Set a smaller viewport size
         await page.setViewport({
-            width: 400, // Smaller width
-            height: 300, // Smaller height
+            width: 400,
+            height: 300,
         });
 
-        await page.setDefaultNavigationTimeout(60000); // Increase navigation timeout to 60 seconds
+        await page.setDefaultNavigationTimeout(60000);
         await page.goto('https://global-mind.org/gcpdot/gcp.html', { waitUntil: 'domcontentloaded' });
         await page.waitForFunction(() => document.readyState === 'complete', { timeout: 30000 });
     } catch (error) {
         console.error('Error launching browser:', error.message);
         console.log('Retrying browser launch...');
-        await new Promise(r => setTimeout(r, 5000)); // Wait 5 seconds before retrying
-        await launchBrowser(); // Retry launching the browser
+        await new Promise(r => setTimeout(r, 5000));
+        await launchBrowser();
     }
 }
 
@@ -290,21 +289,18 @@ async function monitorColor() {
 
 let lastUpdateTime = Date.now();
 
-setInterval(async () => {
-    const now = Date.now();
-    if (now - lastUpdateTime > 5 * 60 * 1000) { // 5 minutes
-        console.warn('No updates for 5 minutes. Restarting browser...');
-        await launchBrowser();
-        lastUpdateTime = Date.now(); // Reset the timer
-    }
-}, 60000); // Check every minute
-
-// Restart Puppeteer every 2 hours to free memory
+// Restart Puppeteer every 45 minutes to free memory
 setInterval(async () => {
     console.log('Restarting Puppeteer to free up memory...');
-    if (browser) await browser.close();
+    if (browser) {
+        try {
+            await browser.close();
+        } catch (e) {
+            console.warn('Error closing browser during scheduled restart:', e.message);
+        }
+    }
     await launchBrowser();
-}, 2 * 60 * 60 * 1000); // 2 hours
+}, 45 * 60 * 1000); // 45 minutes
 
 // Log memory usage every 10 minutes
 setInterval(() => {

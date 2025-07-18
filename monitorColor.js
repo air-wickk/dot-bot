@@ -1,4 +1,6 @@
 const { ActivityType } = require('discord.js');
+const fs = require('fs');
+const path = require('path');
 
 module.exports = async function monitorColor({
     launchBrowser,
@@ -15,6 +17,14 @@ module.exports = async function monitorColor({
     let lastUpdateTime = Date.now();
 
     await launchBrowser();
+
+    // Load all image file paths from the blue-images folder
+    const blueImagesDir = path.join(__dirname, 'blue-images');
+    const blueImages = fs.readdirSync(blueImagesDir)
+        .filter(file => /\.(jpg|jpeg|png|gif)$/i.test(file))
+        .map(file => path.join(blueImagesDir, file));
+
+    let lastMessageWasImage = false;
 
     setInterval(async () => {
         try {
@@ -83,26 +93,62 @@ module.exports = async function monitorColor({
                 });
 
                 const isBlue = [
-                    '<:cyan:1324226273794461706>',
                     '<:bluecyan:1324224790164144128>',
                     '<:darkblue:1324224216651923519>'
                 ].includes(color);
 
-                if (isBlue) {
+                // Only send random image if the dot is exactly "blue" (not dark blue or light blue)
+                if (color === '<:bluecyan:1324224790164144128>') {
+                    consecutiveBlueChecks++;
+                    if (consecutiveBlueChecks >= 4) {
+                        const channel = await client.channels.fetch(CHANNEL_ID);
+
+                        if (!lastNotificationMessage) {
+                            if (blueImages.length > 0 && Math.random() <= 0.05) {
+                                const randomImage = blueImages[Math.floor(Math.random() * blueImages.length)];
+                                lastNotificationMessage = await channel.send({
+                                    files: [randomImage],
+                                    allowedMentions: { roles: [BLUE_ROLE_ID] },
+                                    flags: 1 << 12
+                                });
+                                lastMessageWasImage = true;
+                                lastBlueNotificationTime = Date.now();
+                                console.log(`Sent random blue image for color: ${color}`);
+                            } else {
+                                lastNotificationMessage = await channel.send({
+                                    content: `${customEmoji} **The dot is blue!**`,
+                                    allowedMentions: { roles: [BLUE_ROLE_ID] },
+                                    flags: 1 << 12
+                                });
+                                lastMessageWasImage = false;
+                                lastBlueNotificationTime = Date.now();
+                                console.log(`Notification sent for color: ${color}`);
+                            }
+                        } else if (!lastMessageWasImage) {
+                            await lastNotificationMessage.edit({
+                                content: `${customEmoji} **The dot is blue!**`
+                            });
+                            console.log(`Edited message to reflect color: ${color}`);
+                        }
+                        // If last message was an image, do not edit it until dot is no longer blue
+                    }
+                } else if (isBlue) {
+                    // For "dark blue", keep the old behavior
                     consecutiveBlueChecks++;
                     if (consecutiveBlueChecks >= 4) {
                         const channel = await client.channels.fetch(CHANNEL_ID);
                         if (!lastNotificationMessage) {
                             lastNotificationMessage = await channel.send({
-                                content: `${customEmoji} **The dot is ${statusWord}!**`,
+                                content: `${customEmoji} **The dot is dark blue!**`,
                                 allowedMentions: { roles: [BLUE_ROLE_ID] },
                                 flags: 1 << 12
                             });
+                            lastMessageWasImage = false;
                             lastBlueNotificationTime = Date.now();
                             console.log(`Notification sent for color: ${color}`);
-                        } else {
+                        } else if (!lastMessageWasImage) {
                             await lastNotificationMessage.edit({
-                                content: `${customEmoji} **The dot is ${statusWord}!**`
+                                content: `${customEmoji} **The dot is dark blue!**`
                             });
                             console.log(`Edited message to reflect color: ${color}`);
                         }
@@ -114,6 +160,7 @@ module.exports = async function monitorColor({
                         try {
                             await lastNotificationMessage.delete();
                             lastNotificationMessage = null;
+                            lastMessageWasImage = false;
                             console.log('Deleted the last notification message as the dot is no longer blue.');
                         } catch (error) {
                             console.warn('Failed to delete the last notification message:', error.message);

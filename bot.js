@@ -1,4 +1,5 @@
 // node bot.js to run
+const monitorColor = require('./monitorColor');
 const puppeteer = require('puppeteer');
 const { Client, GatewayIntentBits, SlashCommandBuilder, ActivityType, Options } = require('discord.js');
 const express = require('express');
@@ -58,6 +59,9 @@ async function launchBrowser() {
             protocolTimeout: 60000
         });
         page = await browser.newPage();
+
+        global.page = page;
+        global.browser = browser;
 
         await page.setViewport({
             width: 400,
@@ -177,12 +181,18 @@ setInterval(() => {
 client.on('ready', async () => {
     console.log(`✅ Logged in as ${client.user.tag}!`);
 
-    // Register new command
     await client.application.commands.create(
         new SlashCommandBuilder().setName('dotcolor').setDescription('Get the current color of the dot!')
     );
 
-    monitorColor();
+    monitorColor({
+        launchBrowser,
+        getCenterColor,
+        colorDetector,
+        client,
+        CHANNEL_ID,
+        BLUE_ROLE_ID
+    });
 });
 
 client.on('messageCreate', async (message) => {

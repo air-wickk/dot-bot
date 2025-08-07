@@ -14,6 +14,7 @@ module.exports = async function monitorColor({
     let lastBlueNotificationTime = 0;
     let lastNotificationMessage = null;
     let consecutiveBlueChecks = 0;
+    let nonBlueChecks = 0;
     let lastUpdateTime = Date.now();
 
     await launchBrowser();
@@ -100,6 +101,7 @@ module.exports = async function monitorColor({
                 // Only send random image if the dot is exactly "blue" (not dark blue or light blue)
                 if (color === '<:bluecyan:1324224790164144128>') {
                     consecutiveBlueChecks++;
+                    nonBlueChecks = 0;
                     if (consecutiveBlueChecks >= 4) {
                         const channel = await client.channels.fetch(CHANNEL_ID);
 
@@ -135,6 +137,7 @@ module.exports = async function monitorColor({
                 } else if (isBlue) {
                     // For "dark blue", keep the old behavior
                     consecutiveBlueChecks++;
+                    nonBlueChecks = 0;
                     if (consecutiveBlueChecks >= 4) {
                         const channel = await client.channels.fetch(CHANNEL_ID);
                         if (!lastNotificationMessage) {
@@ -155,16 +158,24 @@ module.exports = async function monitorColor({
                     }
                 } else {
                     consecutiveBlueChecks = 0;
-                    const now = Date.now();
-                    if (lastNotificationMessage && now - lastBlueNotificationTime >= 10 * 60 * 1000) {
-                        try {
-                            await lastNotificationMessage.delete();
-                            lastNotificationMessage = null;
-                            lastMessageWasImage = false;
-                            console.log('Deleted the last notification message as the dot is no longer blue.');
-                        } catch (error) {
-                            console.warn('Failed to delete the last notification message:', error.message);
+                    if (lastNotificationMessage) {
+                        nonBlueChecks++;
+                        // 8 checks * 15s = 120s = 2 minutes
+                        if (nonBlueChecks >= 8) {
+                            try {
+                                await lastNotificationMessage.delete();
+                                lastNotificationMessage = null;
+                                lastMessageWasImage = false;
+                                nonBlueChecks = 0;
+                                console.log('Deleted the last notification message as the dot is not blue for 2 minutes.');
+                            } catch (error) {
+                                console.warn('Failed to delete the last notification message:', error.message);
+                            }
                         }
+                    }
+                    // Reset if dot is not blue and no message exists
+                    if (!lastNotificationMessage) {
+                        nonBlueChecks = 0;
                     }
                 }
                 lastColor = color;

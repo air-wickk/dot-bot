@@ -98,7 +98,6 @@ module.exports = async function monitorColor({
                     '<:darkblue:1324224216651923519>'
                 ].includes(color);
 
-                // Only send random image if the dot is exactly "blue" (not dark blue or light blue)
                 if (color === '<:bluecyan:1324224790164144128>') {
                     consecutiveBlueChecks++;
                     nonBlueChecks = 0;
@@ -134,8 +133,7 @@ module.exports = async function monitorColor({
                         }
                         // If last message was an image, do not edit it until dot is no longer blue
                     }
-                } else if (isBlue) {
-                    // For "dark blue", keep the old behavior
+                } else if (color === '<:darkblue:1324224216651923519>') {
                     consecutiveBlueChecks++;
                     nonBlueChecks = 0;
                     if (consecutiveBlueChecks >= 4) {
@@ -167,7 +165,7 @@ module.exports = async function monitorColor({
                                 lastNotificationMessage = null;
                                 lastMessageWasImage = false;
                                 nonBlueChecks = 0;
-                                console.log('Deleted the last notification message as the dot is not blue for 2 minutes.');
+                                console.log('Deleted the last notification message as the dot has not been blue or dark blue for 2 minutes.');
                             } catch (error) {
                                 console.warn('Failed to delete the last notification message:', error.message);
                             }

@@ -98,7 +98,6 @@ module.exports = async function monitorColor({
                     '<:darkblue:1324224216651923519>'
                 ].includes(color);
 
-                // Only send random image if the dot is exactly "blue" (not dark blue or light blue)
                 if (color === '<:bluecyan:1324224790164144128>') {
                     consecutiveBlueChecks++;
                     nonBlueChecks = 0;
@@ -106,6 +105,7 @@ module.exports = async function monitorColor({
                         const channel = await client.channels.fetch(CHANNEL_ID);
 
                         if (!lastNotificationMessage) {
+                            // Send a new message (image or text)
                             if (blueImages.length > 0 && Math.random() <= 0.05) {
                                 const randomImage = blueImages[Math.floor(Math.random() * blueImages.length)];
                                 lastNotificationMessage = await channel.send({
@@ -114,8 +114,6 @@ module.exports = async function monitorColor({
                                     flags: 1 << 12
                                 });
                                 lastMessageWasImage = true;
-                                lastBlueNotificationTime = Date.now();
-                                console.log(`Sent random blue image for color: ${color}`);
                             } else {
                                 lastNotificationMessage = await channel.send({
                                     content: `${customEmoji} **The dot is blue!**`,
@@ -123,10 +121,11 @@ module.exports = async function monitorColor({
                                     flags: 1 << 12
                                 });
                                 lastMessageWasImage = false;
-                                lastBlueNotificationTime = Date.now();
-                                console.log(`Notification sent for color: ${color}`);
                             }
+                            lastBlueNotificationTime = Date.now();
+                            console.log(`Notification sent for color: ${color}`);
                         } else if (!lastMessageWasImage) {
+                            // Edit the existing message if it's not an image
                             await lastNotificationMessage.edit({
                                 content: `${customEmoji} **The dot is blue!**`
                             });
@@ -134,12 +133,12 @@ module.exports = async function monitorColor({
                         }
                         // If last message was an image, do not edit it until dot is no longer blue
                     }
-                } else if (isBlue) {
-                    // For "dark blue", keep the old behavior
+                } else if (color === '<:darkblue:1324224216651923519>') {
                     consecutiveBlueChecks++;
                     nonBlueChecks = 0;
                     if (consecutiveBlueChecks >= 4) {
                         const channel = await client.channels.fetch(CHANNEL_ID);
+
                         if (!lastNotificationMessage) {
                             lastNotificationMessage = await channel.send({
                                 content: `${customEmoji} **The dot is dark blue!**`,
@@ -155,6 +154,7 @@ module.exports = async function monitorColor({
                             });
                             console.log(`Edited message to reflect color: ${color}`);
                         }
+                        // If last message was an image, do not edit it until dot is no longer blue
                     }
                 } else {
                     consecutiveBlueChecks = 0;
@@ -167,7 +167,7 @@ module.exports = async function monitorColor({
                                 lastNotificationMessage = null;
                                 lastMessageWasImage = false;
                                 nonBlueChecks = 0;
-                                console.log('Deleted the last notification message as the dot is not blue for 2 minutes.');
+                                console.log('Deleted the last notification message as the dot has not been blue or dark blue for 2 minutes.');
                             } catch (error) {
                                 console.warn('Failed to delete the last notification message:', error.message);
                             }

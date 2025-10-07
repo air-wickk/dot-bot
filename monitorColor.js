@@ -98,66 +98,60 @@ module.exports = async function monitorColor({
                     '<:darkblue:1324224216651923519>'
                 ].includes(color);
 
-                if (color === '<:bluecyan:1324224790164144128>') {
+                if (color === '<:bluecyan:1324224790164144128>' || color === '<:darkblue:1324224216651923519>') {
                     consecutiveBlueChecks++;
                     nonBlueChecks = 0;
+
                     if (consecutiveBlueChecks >= 4) {
                         const channel = await client.channels.fetch(CHANNEL_ID);
 
+                        // Check for existing bot messages in the last few hours
                         if (!lastNotificationMessage) {
-                            // Send a new message (image or text)
-                            if (blueImages.length > 0 && Math.random() <= 0.05) {
-                                const randomImage = blueImages[Math.floor(Math.random() * blueImages.length)];
-                                lastNotificationMessage = await channel.send({
-                                    files: [randomImage],
-                                    allowedMentions: { roles: [BLUE_ROLE_ID] },
-                                    flags: 1 << 12
-                                });
-                                lastMessageWasImage = true;
-                            } else {
-                                lastNotificationMessage = await channel.send({
-                                    content: `${customEmoji} **The dot is blue!**`,
-                                    allowedMentions: { roles: [BLUE_ROLE_ID] },
-                                    flags: 1 << 12
-                                });
-                                lastMessageWasImage = false;
+                            const messages = await channel.messages.fetch({ limit: 50 }); // Fetch the last 50 messages
+                            const botMessages = messages.filter(
+                                msg => msg.author.id === client.user.id && msg.content.includes('The dot is')
+                            );
+
+                            // Delete any existing bot messages
+                            for (const [id, msg] of botMessages) {
+                                try {
+                                    await msg.delete();
+                                    console.log(`Deleted old bot message: ${id}`);
+                                } catch (error) {
+                                    console.warn(`Failed to delete old bot message: ${id}`, error.message);
+                                }
                             }
-                            lastBlueNotificationTime = Date.now();
-                            console.log(`Notification sent for color: ${color}`);
-                        } else if (!lastMessageWasImage) {
-                            // Edit the existing message if it's not an image
-                            await lastNotificationMessage.edit({
-                                content: `${customEmoji} **The dot is blue!**`
-                            });
-                            console.log(`Edited message to reflect color: ${color}`);
                         }
-                        // If last message was an image, do not edit it until dot is no longer blue
-                    }
-                } else if (color === '<:darkblue:1324224216651923519>') {
-                    consecutiveBlueChecks++;
-                    nonBlueChecks = 0;
-                    if (consecutiveBlueChecks >= 4) {
-                        const channel = await client.channels.fetch(CHANNEL_ID);
 
-                        if (!lastNotificationMessage) {
+                        // If a message already exists, edit it
+                        if (lastNotificationMessage) {
+                            const newContent = `${customEmoji} **The dot is ${statusWord}!**`;
+                            if (lastNotificationMessage.content !== newContent) {
+                                try {
+                                    await lastNotificationMessage.edit({
+                                        content: newContent
+                                    });
+                                    console.log(`Edited message to reflect color: ${color}`);
+                                } catch (error) {
+                                    console.warn('Failed to edit the notification message:', error.message);
+                                }
+                            }
+                        } else {
+                            // If no message exists, send a new one
                             lastNotificationMessage = await channel.send({
-                                content: `${customEmoji} **The dot is dark blue!**`,
+                                content: `${customEmoji} **The dot is ${statusWord}!**`,
                                 allowedMentions: { roles: [BLUE_ROLE_ID] },
                                 flags: 1 << 12
                             });
                             lastMessageWasImage = false;
                             lastBlueNotificationTime = Date.now();
                             console.log(`Notification sent for color: ${color}`);
-                        } else if (!lastMessageWasImage) {
-                            await lastNotificationMessage.edit({
-                                content: `${customEmoji} **The dot is dark blue!**`
-                            });
-                            console.log(`Edited message to reflect color: ${color}`);
                         }
-                        // If last message was an image, do not edit it until dot is no longer blue
                     }
                 } else {
+                    // Dot is no longer blue or dark blue
                     consecutiveBlueChecks = 0;
+
                     if (lastNotificationMessage) {
                         nonBlueChecks++;
                         // 8 checks * 15s = 120s = 2 minutes
@@ -172,10 +166,8 @@ module.exports = async function monitorColor({
                                 console.warn('Failed to delete the last notification message:', error.message);
                             }
                         }
-                    }
-                    // Reset if dot is not blue and no message exists
-                    if (!lastNotificationMessage) {
-                        nonBlueChecks = 0;
+                    } else {
+                        nonBlueChecks = 0; // Reset if no message exists
                     }
                 }
                 lastColor = color;

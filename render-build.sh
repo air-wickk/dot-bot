@@ -5,6 +5,9 @@ set -o errexit
 # Install dependencies
 npm install
 
+# Ensure Puppeteer installs the required Chrome version
+npx puppeteer browsers install chrome
+
 # Copy the Puppeteer cache if it exists
 if [[ ! -d $PUPPETEER_CACHE_DIR ]]; then
   echo "...Copying Puppeteer Cache from Build Cache"
